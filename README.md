@@ -172,8 +172,11 @@ adb install -r Builds/Android/CubeClash-1.0.0-debug.apk
 ```
 
 **CI.** `.github/workflows/logic-tests.yml` runs the logic tests on every push. `.github/workflows/unity-android.yml`
-is a manually triggered GameCI workflow (EditMode tests + Android build) that needs `UNITY_LICENSE`,
-`UNITY_EMAIL`, `UNITY_PASSWORD` (and optional keystore) repository secrets.
+builds the debug APK with GameCI on every push (and any build kind via *Actions → Unity Android build → Run
+workflow*); the APK/AAB is attached to the run as an artifact. It needs the repository secrets `UNITY_LICENSE`
+(contents of your Unity `.ulf` licence file, see https://game.ci/docs/github/activation), `UNITY_EMAIL` and
+`UNITY_PASSWORD`; optional signing secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASS`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASS`.
 
 ## Project status
 

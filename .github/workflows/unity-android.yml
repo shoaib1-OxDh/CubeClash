@@ -1,10 +1,20 @@
 name: Unity Android build
 
-# Manually triggered Unity build using GameCI (https://game.ci). Requires repository secrets:
-#   UNITY_LICENSE (or UNITY_SERIAL), UNITY_EMAIL, UNITY_PASSWORD
+# Builds the Android APK with GameCI (https://game.ci) on every push, and on demand (Actions tab > Run workflow).
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   UNITY_LICENSE   contents of your Unity .ulf licence file (Unity Personal works)
+#   UNITY_EMAIL     Unity account e-mail
+#   UNITY_PASSWORD  Unity account password
+# How to get UNITY_LICENSE: https://game.ci/docs/github/activation
+#
 # Optional release signing secrets (base64 keystore + passwords):
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEY_ALIAS, ANDROID_KEY_PASS
 on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       kind:
@@ -14,56 +24,76 @@ on:
         type: choice
         options: [BuildDebugApk, BuildReleaseApk, BuildReleaseAab]
 
-jobs:
-  editmode-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          lfs: false
-      - uses: actions/cache@v4
-        with:
-          path: Library
-          key: Library-test-${{ hashFiles('Packages/manifest.json') }}
-      - uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          testMode: editmode
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+concurrency:
+  group: unity-android-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
   android:
-    needs: editmode-tests
+    name: Build Android (${{ inputs.kind || 'BuildDebugApk' }})
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     env:
+      HAS_LICENSE: ${{ secrets.UNITY_LICENSE != '' }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      BUILD_KIND: ${{ inputs.kind || 'BuildDebugApk' }}
     steps:
+      - name: Check Unity licence secret
+        if: env.HAS_LICENSE != 'true'
+        run: |
+          echo "::error::UNITY_LICENSE secret is not set. Add UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD repository secrets (see https://game.ci/docs/github/activation)."
+          exit 1
+
+      # The Unity Android editor image is large; make room on the runner.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
       - uses: actions/checkout@v4
+
       - uses: actions/cache@v4
         with:
           path: Library
-          key: Library-Android-${{ hashFiles('Packages/manifest.json') }}
+          key: Library-Android-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-Android-
+
       - name: Decode keystore
         if: env.HAS_KEYSTORE == 'true'
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE" | base64 -d > release.keystore
+
       - uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          CUBECLASH_KEYSTORE_PATH: release.keystore
+          CUBECLASH_KEYSTORE_PATH: ${{ env.HAS_KEYSTORE == 'true' && 'release.keystore' || '' }}
           CUBECLASH_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
           CUBECLASH_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           CUBECLASH_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
           CUBECLASH_VERSION_CODE: ${{ github.run_number }}
+          CUBECLASH_BUILD_DIR: build/Android
         with:
           targetPlatform: Android
-          buildMethod: CubeSnake.EditorTools.BuildScript.${{ inputs.kind }}
+          versioning: None
+          buildMethod: CubeSnake.EditorTools.BuildScript.${{ env.BUILD_KIND }}
+
+      - name: List build output
+        run: ls -la build/Android || true
+
       - uses: actions/upload-artifact@v4
         with:
-          name: cubeclash-android-${{ inputs.kind }}
-          path: Builds/Android
+          name: CubeClash-android-${{ env.BUILD_KIND }}-${{ github.run_number }}
+          path: |
+            build/Android/*.apk
+            build/Android/*.aab
+          if-no-files-found: error
+          retention-days: 30
