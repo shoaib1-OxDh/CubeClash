@@ -163,13 +163,14 @@ class HudView(context: Context, private val session: GameSession, private val se
 
         // Score + rank.
         val l = insetL; val t = insetT
-        panel(l, t, l + 170 * d, t + 70 * d)
+        panel(l, t, l + 170 * d, t + 90 * d)
         text(NumberFormat.formatScore(h.score), l + 12 * d, t + 34 * d, 26f, Color.WHITE)
         text("Rank #${h.rank} / ${h.competitors}", l + 12 * d, t + 58 * d, 15f, Ui.ACCENT)
+        text("Chain ${h.chainLength}  •  Best ${NumberFormat.formatLevel(h.highestLevel)}", l + 12 * d, t + 80 * d, 13f, Color.WHITE)
 
         // Leaderboard.
         if (h.lbCount > 0) {
-            val top = t + 78 * d
+            val top = t + 98 * d
             panel(l, top, l + 170 * d, top + (12 + h.lbCount * 19) * d, Color.argb(100, 20, 26, 56))
             for (i in 0 until h.lbCount) {
                 val y = top + (24 + i * 19) * d
@@ -179,18 +180,20 @@ class HudView(context: Context, private val session: GameSession, private val se
             }
         }
 
-        // Leading cube + chain info (top centre).
-        val icon = FacePainter.icon(h.skin, h.leadLevel, (64 * d).toInt())
-        val cx = width / 2f
+        // Leading cube, centred in the free space between the score panel and the minimap / pause button.
+        val icon = FacePainter.icon(h.skin, h.leadLevel, (60 * d).toInt())
+        val leftEdge = l + 170 * d
+        val rightEdge = width - insetR - (if (settings.showMinimap) 124 * d else 56 * d)
+        val cx = if (rightEdge - leftEdge > icon.width + 8 * d) (leftEdge + rightEdge) / 2f else width / 2f
         c.drawBitmap(icon, cx - icon.width / 2f, t, null)
-        text("Chain ${h.chainLength}   •   Best ${NumberFormat.formatLevel(h.highestLevel)}", cx, t + 64 * d + 20 * d, 14f, Color.WHITE, Paint.Align.CENTER)
 
-        // Warnings.
+        // Warnings (below the top HUD so they never overlap it).
+        val wy = t + 230 * d
         if (h.danger) {
             val a = 0.65f + 0.35f * sin(pulse * 1.5f)
-            text("DANGER! BIGGER RIVAL NEARBY", cx, t + 118 * d, 18f, Ui.DANGER, Paint.Align.CENTER, a)
+            text("DANGER! BIGGER RIVAL NEARBY", width / 2f, wy, 18f, Ui.DANGER, Paint.Align.CENTER, a)
         }
-        if (h.nearEdge) text("Edge of the arena", cx, t + 142 * d, 15f, Ui.ACCENT, Paint.Align.CENTER)
+        if (h.nearEdge) text("Edge of the arena", width / 2f, wy + 24 * d, 15f, Ui.ACCENT, Paint.Align.CENTER)
 
         // Pause button.
         paint.style = Paint.Style.FILL; paint.color = Color.argb(150, 20, 26, 56)

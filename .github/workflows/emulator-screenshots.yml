@@ -75,7 +75,9 @@ jobs:
           mkdir -p screens
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb logcat -c || true
-          shot() { adb exec-out screencap -p > "screens/$1.png"; echo "captured $1"; }
+          # The slow CI emulator sometimes shows "System UI isn't responding"; close system dialogs before each shot.
+          shot() { adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true; sleep 1
+                   adb exec-out screencap -p > "screens/$1.png"; echo "captured $1"; }
           adb shell am start -W -n com.oxdh.cubeclash/.MainActivity
           sleep 8; shot 01-menu
           adb shell am force-stop com.oxdh.cubeclash
@@ -83,8 +85,10 @@ jobs:
           sleep 6; shot 02-game-start
           sleep 15; shot 03-game-20s
           sleep 25; shot 04-game-45s
+          adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
           adb shell input keyevent KEYCODE_BACK; sleep 2; shot 05-paused
           adb shell input keyevent KEYCODE_BACK; sleep 1
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity > /dev/null; sleep 1
           adb shell settings put system accelerometer_rotation 0 || true
           adb shell settings put system user_rotation 1 || true
           sleep 6; shot 06-landscape
