@@ -68,7 +68,8 @@ jobs:
 
       - name: Summarise failures
         if: failure()
-        run: grep -h -E '^e: |FAILED|AssertionError|Exception:|error:' *.log | grep -v '^\s*at ' | head -60 || true
+        run: |
+          grep -h -E '^e: |FAILED|AssertionError|Exception:|error:' *.log | grep -v '^\s*at ' | head -60 || true
 
       - name: Remove signing files
         if: always()
