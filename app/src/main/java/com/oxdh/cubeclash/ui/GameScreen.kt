@@ -1,0 +1,155 @@
+package com.oxdh.cubeclash.ui
+
+import android.annotation.SuppressLint
+import android.opengl.GLSurfaceView
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import com.oxdh.cubeclash.GameSession
+import com.oxdh.cubeclash.MainActivity
+import com.oxdh.cubeclash.Sfx
+import com.oxdh.cubeclash.engine.NumberFormat
+import com.oxdh.cubeclash.engine.ProgressRules
+import com.oxdh.cubeclash.engine.UnlockCatalog
+import com.oxdh.cubeclash.gfx.FacePainter
+import com.oxdh.cubeclash.gfx.GameRenderer
+import javax.microedition.khronos.egl.EGL10
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.egl.EGLDisplay
+
+/** Arena screen: GL view + HUD + pause / game-over overlays. */
+@SuppressLint("ViewConstructor")
+class GameScreen(private val activity: MainActivity, val session: GameSession) : FrameLayout(activity), GameRenderer.Listener {
+    private val settings = activity.settings
+    private val glView = GLSurfaceView(activity)
+    val hudView = HudView(activity, session, settings) { pause() }
+    private var pauseOverlay: FrameLayout? = null
+    private var subModal: FrameLayout? = null
+    private var gameOverOverlay: FrameLayout? = null
+    private var recorded = false
+
+    init {
+        glView.setEGLContextClientVersion(3)
+        glView.setEGLConfigChooser(MsaaChooser(!settings.lowEffects))
+        glView.preserveEGLContextOnPause = true
+        glView.setRenderer(GameRenderer(session, settings, activity.sound, this))
+        glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+        addView(glView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        addView(hudView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    override fun requestHudRedraw() { hudView.postInvalidateOnAnimation() }
+
+    override fun onRunOver(defeated: Boolean) { post { showGameOver(defeated) } }
+
+    fun onPause() { glView.onPause(); hudView.releaseAll(); if (!session.ended && !session.autoplay) pause() }
+    fun onResume() { glView.onResume() }
+
+    fun pause() {
+        if (session.paused || session.ended || gameOverOverlay != null) return
+        session.paused = true
+        hudView.releaseAll()
+        lateinit var o: FrameLayout
+        o = Ui.modal(this, "Paused", 380f, scroll = false) { col ->
+            val c = col.context
+            col.addView(Ui.button(c, "Resume", Ui.GOOD) { resume() }, Ui.matchWrap())
+            col.addView(Ui.button(c, "Restart", Ui.PRIMARY) { record(); activity.startGame(session.mode.ordinal, session.difficulty.ordinal) }, Ui.matchWrap())
+            col.addView(Ui.button(c, "Settings", Ui.PANEL_LIGHT) {
+                o.visibility = INVISIBLE
+                subModal = Dialogs.settings(this, settings, null) { subModal = null; o.visibility = VISIBLE }
+            }, Ui.matchWrap())
+            col.addView(Ui.button(c, "End Run", Ui.ACCENT) { Ui.close(o); pauseOverlay = null; session.paused = false; session.endRequested = true }, Ui.matchWrap())
+            col.addView(Ui.button(c, "Main Menu", Ui.DANGER) { record(); activity.showMenu() }, Ui.matchWrap())
+        }
+        pauseOverlay = o
+    }
+
+    fun resume() {
+        pauseOverlay?.let { Ui.close(it) }
+        pauseOverlay = null
+        session.paused = false
+    }
+
+    /** Folds this run into the saved progress exactly once. */
+    private fun record(): com.oxdh.cubeclash.engine.PersonalBestResult? {
+        if (recorded || session.autoplay) return null
+        recorded = true
+        val r = ProgressRules.applySession(activity.save.progress, session.world.player.stats, session.mode)
+        activity.save.save()
+        return r
+    }
+
+    private fun showGameOver(defeated: Boolean) {
+        session.ended = true
+        pauseOverlay?.let { Ui.close(it) }; pauseOverlay = null
+        hudView.releaseAll()
+        val stats = session.world.player.stats
+        val prev = activity.save.progress.bestScore
+        val r = record()
+        if (r != null && (r.newBestScore || r.newHighestLevel)) activity.sound.play(Sfx.HIGH_SCORE)
+        gameOverOverlay = Ui.modal(this, if (defeated) "Game Over" else "Run Complete", 420f) { col ->
+            val c = col.context
+            col.addView(ImageView(c).apply { setImageBitmap(FacePainter.icon(session.world.player.skin, stats.highestLevel, Ui.dpi(c, 84f))) },
+                android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dpi(c, 88f)))
+            col.addView(Ui.text(c, NumberFormat.formatScore(stats.score), 40f), Ui.matchWrap())
+            val bestLine = if (r?.newBestScore == true) "<font color='#FFC23D'>NEW PERSONAL BEST!</font>" else "Best: ${NumberFormat.formatScore(maxOf(prev, stats.score))}"
+            col.addView(Ui.text(c, Ui.html(bestLine), 16f, Ui.TEXT_DIM), Ui.matchWrap())
+            fun row(k: String, v: CharSequence) {
+                val rw = Ui.horizontal(c, 8f)
+                rw.addView(Ui.text(c, k, 15f, Ui.TEXT_DIM, bold = false, gravity = Gravity.START), Ui.weighted())
+                rw.addView(Ui.text(c, v, 16f, gravity = Gravity.END), Ui.weighted())
+                col.addView(rw, Ui.matchWrap())
+            }
+            row("Highest number", Ui.html(NumberFormat.formatLevel(stats.highestLevel) + if (r?.newHighestLevel == true) " <font color='#FFC23D'>NEW!</font>" else ""))
+            row("Longest chain", stats.maxChainLength.toString())
+            row("Rivals defeated", stats.opponentsDefeated.toString())
+            row("Cubes collected", stats.cubesCollected.toString())
+            row("Merges", stats.merges.toString())
+            row("Time", NumberFormat.formatDuration(stats.durationSeconds))
+            if (r != null) row("Coins earned", "+${r.coinsEarned}")
+            if (r != null && r.newUnlocks.isNotEmpty())
+                col.addView(Ui.text(c, "Unlocked: " + r.newUnlocks.joinToString { UnlockCatalog.get(it)?.displayName ?: it }, 15f, Ui.GOOD), Ui.matchWrap())
+            col.addView(Ui.button(c, "Play Again", Ui.GOOD) { activity.startGame(session.mode.ordinal, session.difficulty.ordinal) }, Ui.matchWrap())
+            col.addView(Ui.button(c, "Main Menu", Ui.PRIMARY) { activity.showMenu() }, Ui.matchWrap())
+        }
+    }
+
+    /** Android back button. */
+    fun onBack() {
+        val sm = subModal
+        when {
+            sm != null -> { Ui.close(sm); subModal = null; pauseOverlay?.visibility = VISIBLE }
+            gameOverOverlay != null -> activity.showMenu()
+            session.paused -> resume()
+            else -> pause()
+        }
+    }
+
+    fun shutdown() { glView.onPause() }
+
+    /** Prefers 4x MSAA (unless low effects), falls back to no MSAA, then to anything ES-capable. */
+    private class MsaaChooser(private val msaa: Boolean) : GLSurfaceView.EGLConfigChooser {
+        override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
+            val es3 = 0x40 // EGL_OPENGL_ES3_BIT_KHR
+            val attempts = mutableListOf<IntArray>()
+            for (type in intArrayOf(es3, 4)) {
+                if (msaa) attempts += attribs(type, 4)
+                attempts += attribs(type, 0)
+            }
+            for (a in attempts) {
+                val num = IntArray(1)
+                val configs = arrayOfNulls<EGLConfig>(1)
+                if (egl.eglChooseConfig(display, a, configs, 1, num) && num[0] > 0 && configs[0] != null) return configs[0]!!
+            }
+            throw IllegalStateException("No suitable EGL config")
+        }
+
+        private fun attribs(type: Int, samples: Int): IntArray {
+            val base = mutableListOf(EGL10.EGL_RED_SIZE, 8, EGL10.EGL_GREEN_SIZE, 8, EGL10.EGL_BLUE_SIZE, 8, EGL10.EGL_DEPTH_SIZE, 16, EGL10.EGL_RENDERABLE_TYPE, type)
+            if (samples > 0) base += listOf(EGL10.EGL_SAMPLE_BUFFERS, 1, EGL10.EGL_SAMPLES, samples)
+            base += EGL10.EGL_NONE
+            return base.toIntArray()
+        }
+    }
+}

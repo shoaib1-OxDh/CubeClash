@@ -1,17 +1,17 @@
 # Cube Clash — Game Rules (reference)
 
 This document is the specification the code implements. Every rule below is configurable in
-`Assets/Resources/GameConfig.asset` (class `RulesConfig` in `Assets/Scripts/Logic/Numbers/ProgressionRules.cs`)
-and covered by automated tests in `Assets/Tests/EditMode/`.
+`engine/src/main/kotlin/com/oxdh/cubeclash/engine/` (`RulesConfig` in `Numbers.kt`, the rest in `Config.kt`)
+and covered by automated tests in `engine/src/test/`.
 
 ## 1. Four independent quantities
 
 | Quantity | Where it lives | Changes when |
 |---|---|---|
-| **Cube value** | `ChainCell.Level` (value = 2^level) | merges, upgrades |
-| **Chain length** | `ChainModel.Length` | a cube is added, merged away, shed, or severed |
-| **Score** | `SessionStats.Score` (saturating `long`) | collect, merge, defeat, sever, shed |
-| **Highest value** | `SessionStats.HighestLevel` | the leading cube reaches a new maximum |
+| **Cube value** | `ChainCell.level` (value = 2^level) | merges, upgrades |
+| **Chain length** | `ChainModel.length` | a cube is added, merged away, shed, or severed |
+| **Score** | `SessionStats.score` (saturating `long`) | collect, merge, defeat, sever, shed |
+| **Highest value** | `SessionStats.highestLevel` | the leading cube reaches a new maximum |
 
 They are never derived from each other.
 
