@@ -193,6 +193,15 @@ object Online {
 
         override val description: String get() = "online via ${relay?.host ?: "relay"}"
 
+        /** Connects to one specific relay (tests / diagnostics). */
+        fun openOn(index: Int): String {
+            val r = RELAYS[index]
+            val m = MqttConnection(r.host, r.port, r.tls, randomId("cch-"))
+            m.connect()
+            conn = m; relay = r; code = newCode(index)
+            return code
+        }
+
         /** Connects to the first reachable relay (blocking, call off the UI thread). Returns the room code. */
         fun open(preferred: Int = 0): String {
             var last: Exception? = null

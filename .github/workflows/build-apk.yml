@@ -73,6 +73,10 @@ jobs:
         run: |
           grep -h -E '^e: |FAILED|AssertionError|Exception:|error:' *.log | grep -v '^\s*at ' | head -60 || true
 
+      - name: Online relay report
+        if: always()
+        run: grep -h "\[online\]" engine.log || echo "no online relay results"
+
       - name: Remove signing files
         if: always()
         run: rm -f cubeclash-release.jks keystore.properties

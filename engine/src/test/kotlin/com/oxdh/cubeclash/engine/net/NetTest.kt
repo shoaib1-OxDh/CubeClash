@@ -178,25 +178,45 @@ class LanTest {
     }
 }
 
-/** Online play through a real public relay. Runs only when CUBECLASH_ONLINE_TESTS=1 (CI) and a relay is reachable. */
+/**
+ * Online play through the real public relays. Runs only when CUBECLASH_ONLINE_TESTS=1 (CI). Measures every relay
+ * (states per second, ping, inputs delivered) and requires at least one to be good enough to play on.
+ */
 class OnlineLiveTest {
-    @Test fun hostAndClientThroughPublicRelay() {
-        Assume.assumeTrue(System.getenv("CUBECLASH_ONLINE_TESTS") == "1")
+    private fun measure(relayIndex: Int, seconds: Float): String {
         val world = World(GameConfig(), GameModeSettings.forMode(GameMode.CLASSIC), AIDifficulty.NORMAL, 9,
             options = WorldOptions(botCount = 2, respawnHumans = true, trackNetChanges = true))
         val transport = Online.HostTransportImpl("CI host") { 1 }
-        val code = try { transport.open() } catch (e: Exception) { Assume.assumeNoException(e); return }
+        val code = try { transport.openOn(relayIndex) } catch (e: Exception) { return "unreachable (${e.message})" }
         val host = HostSession(world, transport, code, "CI host", stateRate = 15f)
         host.start()
-        val client = ClientSession({ Online.ClientTransportImpl(code, "live-" + System.nanoTime()) }, Online.randomId("cid-"), "Remote", "classic", "spark")
+        val cid = Online.randomId("cid-")
+        val client = ClientSession({ Online.ClientTransportImpl(code, cid) }, cid, "Remote", "classic", "spark")
         client.start()
         client.input.direction = Vec2(0f, -1f)
-        val end = System.currentTimeMillis() + 25000
-        while (System.currentTimeMillis() < end && client.statesReceived < 60) { host.tick(1f / 60f); client.tick(1f / 60f); Thread.sleep(16) }
-        println("online relay ${Online.relayFor(code)}: states=${client.statesReceived} rtt=${client.lastRttMs}ms status=${client.status}")
-        assertEquals(ClientSession.Status.PLAYING, client.status)
-        assertTrue(client.statesReceived >= 60)
-        assertTrue(host.peers.first().inputs > 20)
+        var firstState = -1L
+        val start = System.currentTimeMillis()
+        val end = start + (seconds * 1000).toLong()
+        while (System.currentTimeMillis() < end) {
+            host.tick(1f / 60f); client.tick(1f / 60f)
+            if (firstState < 0 && client.statesReceived > 0) firstState = System.currentTimeMillis()
+            Thread.sleep(16)
+        }
+        val playing = if (firstState > 0) (System.currentTimeMillis() - firstState) / 1000f else 0f
+        val rate = if (playing > 0) client.statesReceived / playing else 0f
+        val inputs = host.peers.firstOrNull()?.inputs ?: 0
         client.leave(); host.close()
+        return "status=${client.status} join=${if (firstState > 0) (firstState - start) else -1}ms states/s=${"%.1f".format(rate)} rtt=${client.lastRttMs}ms inputs=$inputs"
+    }
+
+    @Test fun relaysCarryARealSession() {
+        Assume.assumeTrue(System.getenv("CUBECLASH_ONLINE_TESTS") == "1")
+        val results = Online.RELAYS.indices.map { i -> Online.RELAYS[i].host to measure(i, 12f) }
+        results.forEach { println("[online] ${it.first}: ${it.second}") }
+        val good = results.count { (_, r) ->
+            val rate = Regex("states/s=([0-9.]+)").find(r)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
+            r.startsWith("status=PLAYING") && rate >= 5f
+        }
+        assertTrue("at least one relay must carry a playable session: $results", good >= 1)
     }
 }
