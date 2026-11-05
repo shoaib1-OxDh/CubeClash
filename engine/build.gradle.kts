@@ -21,4 +21,13 @@ dependencies {
 
 tasks.test {
     testLogging { events("passed", "failed", "skipped"); showStandardStreams = true }
+    environment("CUBECLASH_ONLINE_TESTS", System.getenv("CUBECLASH_ONLINE_TESTS") ?: "0")
+}
+
+// Headless multiplayer peer for CI end-to-end tests against the app: ./gradlew :engine:netbot --args="lan-join 127.0.0.1 47800 30"
+tasks.register<JavaExec>("netbot") {
+    group = "verification"
+    description = "Runs a headless multiplayer peer (see NetBot.kt)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.oxdh.cubeclash.engine.net.NetBotKt")
 }

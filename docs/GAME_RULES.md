@@ -40,7 +40,8 @@ They are never derived from each other.
 | `AnyValue` | always (a bigger cube becomes the new head) |
 | `MatchingChainValue` | V equals some cube already in the chain |
 
-Ineligible cubes are shown greyed out and are simply ignored on contact (no damage, no collection).
+Ineligible (bigger) cubes are greyed out and **solid**: a head cannot enter them. Ramming one pushes it only
+slightly (less the bigger it is) and holds the snake back to ~30 % speed; speed returns smoothly once you turn away.
 
 **Smaller cubes** (`smallerCubeBehaviour`, for eligible cubes strictly smaller than the head):
 
@@ -78,31 +79,28 @@ Cascade: `[8, 4, 2, 1]` + 1 → `[8,4,2,1,1]` → `[8,4,2,2]` → `[8,4,4]` → 
 | Sever cubes with total value T | T × `scoreDefeatValueFraction` |
 | Shed a cube of value V (length cap) | V × `scoreShedValueFraction` (0.5) |
 
-## 7. Combat
+## 7. Eating snakes (number-based)
 
-A chain's **head is its weapon**. Every contact is "attacker head touches a defender cube".
-Strength (`strengthMetric`): leading-cube value (default) or total chain value.
+A chain's **head is its mouth**; its number is the leading cube's value. Only the **front** of the head bites
+(contacts behind the head's mid-line are ignored), and only real contact counts (penetration of the cube's radius).
 
 | Situation | Outcome |
 |---|---|
-| Attacker stronger, hits defender's **head** | Defender defeated |
-| Attacker stronger, hits defender's **body** | Defender **severed** at that cube (it and everything behind it drop as collectibles). With `severOnBodyHit = false` the defender is defeated instead. |
-| Attacker weaker (ran into a bigger chain) | Attacker defeated |
-| Equal strength | `tieRule`: `Bounce` (default, both pushed apart), `BothDefeated`, or `Ignore` |
-| Either chain spawn-protected (`spawnProtectionSeconds`, 3 s, ring blinks) | Bounce |
-| Defeat not permitted by the mode (e.g. Endless Growth player) | Bounce |
+| Head touches another snake's cube with a **smaller** number — that cube is the head | The whole snake is eaten: all its cubes are added to the eater (then merge), plus defeat score |
+| … that cube is a body cube | That cube and everything behind it are eaten (`severOnBodyHit`, default on) |
+| The touched cube is **equal or bigger** | Solid: heads **bounce** apart; a body **blocks** the head (pushed back out, strong slow-down) |
+| Either snake spawn-protected (3 s, ring blinks) or the mode forbids it | Solid contact |
 
-Per frame, each chain takes part in **at most one** resolved contact (deepest contact first, deterministic order),
-so one collision can never cause multiple defeats. Chains do not collide with themselves.
-
-On defeat: burst effect → `dropFraction` (default 100 %) of its cubes become world collectibles at their positions
-→ the winner gets defeat score → rivals respawn after `rivalRespawnDelay`; the player's defeat ends the game.
-
-Ordinary collectibles can never hurt you.
+Example: with an 8 you eat 1, 2, 4 — never 8 or more, whether anyone is moving, standing or boosting. A small snake
+with a 4 can eat a 2 or a 1 at the end of a big snake's tail; the big snake can turn around and eat it.
+Per frame each chain takes part in at most one eat (so it is eaten at most once); eats are resolved before solid
+contacts. Physics runs in sub-steps of ≤ 1/60 s so fast snakes cannot tunnel through anything.
+In multiplayer the host resolves all of this, so the rules are identical for every player.
 
 ## 8. Movement and boost
 
-* Chains always move forward; input steers (max turn rate × turn sensitivity). Bigger heads are slightly slower.
+* Chains always move forward; input steers (max 360°/s × turn sensitivity, so U-turns take about half a second).
+  Bigger heads are slightly slower.
 * Boost (`BoostConfig`): ×1.75 speed, drains energy (0.38/s), regenerates (0.16/s) after a 0.6 s delay, needs
   12 % to start. A cooldown mode is also available.
 * The arena is a disc of radius 120 with a visible glowing boundary: chains slide along it and can never leave.

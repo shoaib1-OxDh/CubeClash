@@ -25,6 +25,11 @@ class SessionStats {
         if (headLevel > highestLevel) highestLevel = headLevel
         if (length > maxChainLength) maxChainLength = length
     }
+    /** Network replicas mirror the host's numbers. */
+    fun syncFromNetwork(score: Long, highestLevel: Int, maxChainLength: Int, defeated: Int) {
+        this.score = score; this.highestLevel = highestLevel; this.maxChainLength = maxChainLength; this.opponentsDefeated = defeated
+    }
+
     /** Applies the score and merge counts of [events]. */
     fun apply(events: List<ChainEvent>) {
         for (e in events) {

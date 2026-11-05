@@ -16,7 +16,7 @@ permissions:
 jobs:
   screenshots:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -36,8 +36,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Build debug APK and the headless multiplayer bot
+        run: ./gradlew :app:assembleDebug :engine:classes --stacktrace
 
       - name: Free disk space
         run: |
@@ -96,16 +96,66 @@ jobs:
           adb shell am force-stop com.oxdh.cubeclash
           adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --ez autoplay true --ei mode 1
           sleep 30; shot 07-endless-30s
+
+          # Touch controls (real input events): drag to steer, then double-tap and hold to boost.
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --ez autoplay false --ei mode 1 > /dev/null
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity > /dev/null
+          sleep 3
+          # Start a solo Endless game from the menu: tap PLAY (centre of the screen, slightly below the middle).
+          adb shell input tap 540 1560 || true
+          sleep 5; shot 08-solo-start
+          adb shell input swipe 540 1700 900 1700 1200; shot 09-drag-right
+          adb shell input swipe 540 1700 540 1300 1200; shot 10-drag-up
+          adb shell input tap 540 1600; adb shell input swipe 540 1600 545 1605 1500 &
+          sleep 0.8; shot 11-double-tap-boost; wait
+
           adb logcat -d -v brief > logcat.txt || true
           grep -E "AndroidRuntime|FATAL|CubeClash|GL_INVALID|Shader|EGL" logcat.txt | head -100 > logcat-summary.txt || true
           cat logcat-summary.txt
           ls -la screens
 
+      - name: Multiplayer — app hosts a LAN room, a separate bot joins over TCP
+        run: |
+          shot() { adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true; sleep 1
+                   adb exec-out screencap -p > "screens/$1.png"; echo "captured $1"; }
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --es mp lan_host --ei bots 2 --ez autoplay true
+          sleep 6
+          adb forward tcp:47800 tcp:47800
+          ./gradlew -q :engine:netbot --args="lan-join 127.0.0.1 47800 45" > lan-bot.log 2>&1 &
+          BOT=$!
+          sleep 25; shot 12-lan-host-with-bot
+          sleep 12; shot 13-lan-host-later
+          wait $BOT; STATUS=$?
+          cat lan-bot.log
+          adb forward --remove-all || true
+          test $STATUS -eq 0
+
+      - name: Multiplayer — a bot hosts an online room, the app joins with the code
+        run: |
+          shot() { adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true; sleep 1
+                   adb exec-out screencap -p > "screens/$1.png"; echo "captured $1"; }
+          adb shell am force-stop com.oxdh.cubeclash
+          rm -f code.txt
+          ./gradlew -q :engine:netbot --args="online-host 75 $PWD/code.txt" > online-host.log 2>&1 &
+          BOT=$!
+          for i in $(seq 1 60); do [ -s code.txt ] && break; sleep 1; done
+          CODE=$(cat code.txt); echo "Room code: $CODE"
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --es mp online_join --es code "$CODE" --ez autoplay true
+          sleep 25; shot 14-online-client
+          sleep 15; shot 15-online-client-later
+          adb shell input keyevent KEYCODE_BACK; sleep 2; shot 16-online-room-menu
+          wait $BOT; STATUS=$?
+          cat online-host.log
+          adb logcat -d -v brief | grep -E "AndroidRuntime|FATAL|CubeClash" | tail -40 >> logcat-summary.txt || true
+          test $STATUS -eq 0
+
       - name: Publish screenshots branch
         if: always()
         run: |
           [ -d screens ] && [ -n "$(ls -A screens 2>/dev/null)" ] || { echo "No screenshots"; exit 0; }
-          mkdir -p /tmp/pub && cp screens/* /tmp/pub/ && cp logcat-summary.txt /tmp/pub/ 2>/dev/null || true
+          mkdir -p /tmp/pub && cp screens/* /tmp/pub/ && cp logcat-summary.txt lan-bot.log online-host.log /tmp/pub/ 2>/dev/null || true
           cd /tmp/pub
           git init -q -b emulator-screens
           git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
@@ -119,6 +169,8 @@ jobs:
           if-no-files-found: warn
           path: |
             screens/
+            lan-bot.log
+            online-host.log
             logcat.txt
             logcat-summary.txt
             emulator.log

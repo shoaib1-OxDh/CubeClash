@@ -106,6 +106,30 @@ class ChainModel(private val ids: IdGenerator, startLevel: Int = 0) {
         return -1
     }
 
+    /**
+     * Network replicas: makes the levels equal to [levels] while keeping the identity of cubes at the same index
+     * (so views animate smoothly). Returns the indices whose level increased (merges / upgrades).
+     */
+    fun replaceLevelsInPlace(levels: IntArray): List<Int> {
+        val grew = ArrayList<Int>()
+        val n = levels.size.coerceAtLeast(1)
+        while (cellList.size > n) cellList.removeAt(cellList.size - 1)
+        for (i in 0 until n) {
+            val l = if (i < levels.size) levels[i].coerceAtLeast(0) else 0
+            if (i < cellList.size) {
+                if (cellList[i].level != l) { if (l > cellList[i].level) grew += i; cellList[i].level = l }
+            } else cellList.add(ChainCell(ids.next(), l))
+        }
+        version++
+        return grew
+    }
+
+    fun levelsEqual(levels: IntArray): Boolean {
+        if (levels.size != cellList.size) return false
+        for (i in levels.indices) if (levels[i] != cellList[i].level) return false
+        return true
+    }
+
     override fun toString() = cellList.joinToString(", ", "[", "]") { NumberFormat.formatLevel(it.level) }
 }
 

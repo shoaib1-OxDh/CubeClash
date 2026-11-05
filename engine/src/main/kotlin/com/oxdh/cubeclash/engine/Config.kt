@@ -40,6 +40,9 @@ class BoostMeter(val config: BoostConfig = BoostConfig()) {
 
     fun refill() { energy = 1f; cooldownTimer = 0f; boostTimer = 0f; isBoosting = false }
 
+    /** Network replicas mirror the host's boost state. */
+    fun syncFromNetwork(energy: Float, boosting: Boolean) { this.energy = energy.coerceIn(0f, 1f); isBoosting = boosting }
+
     fun update(dt: Float, wantsBoost: Boolean) {
         if (dt <= 0f) return
         if (config.mode == BoostMode.ENERGY) updateEnergy(dt, wantsBoost) else updateCooldown(dt, wantsBoost)
@@ -77,7 +80,7 @@ data class MovementConfig(
     var deceleration: Float = 10f,
     var turnSensitivity: Float = 1f,
     /** Degrees per second. */
-    var maxTurnRateDegrees: Float = 280f,
+    var maxTurnRateDegrees: Float = 360f,
     /** Gap between consecutive cubes as a fraction of their average size. */
     var chainGapFactor: Float = 1.08f,
     var followSharpness: Float = 10f,

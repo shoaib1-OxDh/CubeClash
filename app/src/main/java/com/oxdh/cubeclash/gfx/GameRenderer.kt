@@ -50,7 +50,7 @@ class GameRenderer(
         fun onRunOver(defeated: Boolean)
     }
 
-    private val world = session.world
+    private val world get() = session.world
     private val hud = session.hud
 
     // GL objects.
@@ -164,7 +164,7 @@ class GameRenderer(
         GLES30.glEnableVertexAttribArray(3); GLES30.glVertexAttribPointer(3, 1, GLES30.GL_FLOAT, false, SPRITE_FLOATS * 4, 32); GLES30.glVertexAttribDivisor(3, 1)
         GLES30.glBindVertexArray(0)
 
-        atlasTex = buildAtlas(world.player.skin)
+        atlasTex = buildAtlas(session.localSkin)
         if (decorations.isEmpty()) buildDecorations()
         lastNanos = 0L
     }
@@ -227,11 +227,11 @@ class GameRenderer(
             finishRun(false)
         }
 
-        if (!session.paused) {
+        if (!session.paused || session.isMultiplayer) {
             val scale = if (realTime < slowMoUntil) 0.35f else 1f
-            world.step(dt * scale)
+            session.tick(dt * scale)
             handleEvents()
-            if (world.playerDefeated && !runOverSent && slowMoUntil < 0f) slowMoUntil = realTime + 1.4f
+            if (!session.isMultiplayer && world.playerDefeated && !runOverSent && slowMoUntil < 0f) slowMoUntil = realTime + 1.4f
             if (slowMoUntil > 0f && realTime >= slowMoUntil && !runOverSent) finishRun(true)
             updateParticles(dt * scale)
         }
@@ -278,7 +278,10 @@ class GameRenderer(
                 burst(e.x, 0.7f, e.y, Color.WHITE, if (low) 20 else 40, 7f, 0.8f, 0.6f)
                 burst(e.x, 0.7f, e.y, Palette.color(e.victim.skin, e.topLevel), if (low) 15 else 30, 9f, 1f, 0.45f, gravity = 9f)
                 when {
-                    isPlayer(e.victim) -> { sound.play(Sfx.PLAYER_DEFEAT); shake = 0.8f }
+                    isPlayer(e.victim) -> {
+                        sound.play(Sfx.PLAYER_DEFEAT); shake = 0.8f
+                        if (session.isMultiplayer) addFloating(if (e.killer != null) "Eaten by ${e.killer!!.name}!" else "Eaten!", e.x, 3f, e.y, 0xFFFF6B78.toInt(), 2.2f, 1.4f)
+                    }
                     e.killer != null && isPlayer(e.killer!!) -> {
                         sound.play(Sfx.OPPONENT_DEFEAT)
                         addFloating("Defeated ${e.victim.name}!", e.x, 3f, e.y, 0xFF7CF29A.toInt(), 1.6f, 1.4f)
@@ -293,6 +296,13 @@ class GameRenderer(
             }
             is WorldEvent.Bounced -> if (isPlayer(e.a) || isPlayer(e.b)) sound.play(Sfx.CLICK, 0.6f, 0.7f)
             is WorldEvent.BoostStarted -> if (isPlayer(e.chain)) sound.play(Sfx.BOOST, 1f, 0.7f)
+            is WorldEvent.Blocked -> if (isPlayer(e.chain)) {
+                // Solid contact: a dull thud, a puff of dust and a small camera nudge.
+                sound.play(Sfx.CLICK, 0.55f, 0.8f)
+                burst(e.x, 0.3f, e.y, Color.rgb(210, 215, 235), if (low) 4 else 8, 2.5f, 0.35f, 0.35f)
+                shake = min(1f, shake + 0.08f)
+            }
+            is WorldEvent.Respawned -> if (isPlayer(e.chain)) addFloating("Back in the game!", e.chain.headX, 3f, e.chain.headY, Color.WHITE, 1.6f, 1.3f)
         }
         // Boost trail sparkles.
         for (c in world.chains) if (c.alive && c.boost.isBoosting && c.segments.isNotEmpty() && !low) {
@@ -344,7 +354,8 @@ class GameRenderer(
         val head = p.segments.firstOrNull()
         val hx = head?.x ?: p.headX; val hy = head?.y ?: p.headY
         val f = p.forward
-        val tx = hx + f.x * 2.5f; val tz = -(hy + f.y * 2.5f)
+        val look = 2.2f + p.speed * 0.12f
+        val tx = hx + f.x * look; val tz = -(hy + f.y * look)
         val sens = settings.cameraSensitivity
         if (!camInit) { focusX = tx; focusZ = tz }
         val kf = 1f - exp(-8f * sens * dt)
@@ -357,13 +368,16 @@ class GameRenderer(
         hud.cameraYaw = yaw
 
         val aspect = width.toFloat() / height
-        val chainZoom = 1f + min(0.5f, p.model.length * 0.012f + p.headLevel * 0.02f)
-        val aspectZoom = if (aspect < 1f) 1.25f - 0.25f * ((aspect - 0.45f) / 0.55f).coerceIn(0f, 1f) else 1f
-        val targetZoom = chainZoom * aspectZoom * settings.cameraZoom
+        val chainZoom = 1f + min(0.45f, p.model.length * 0.01f + p.headLevel * 0.018f)
+        // Portrait sees less sideways, so pull back a bit; landscape gets a much closer third-person view.
+        val aspectZoom = if (aspect < 1f) 1.18f - 0.18f * ((aspect - 0.45f) / 0.55f).coerceIn(0f, 1f) else 0.78f
+        val boostZoom = if (p.boost.isBoosting) 1.06f else 1f
+        val targetZoom = chainZoom * aspectZoom * boostZoom * settings.cameraZoom
         zoom += (targetZoom - zoom) * (1f - exp(-2f * dt))
         if (!camInit) zoom = targetZoom
 
-        val ox = sin(yaw) * 12f * zoom; val oz = cos(yaw) * 12f * zoom; val oy = 17f * zoom
+        // Third-person: behind and above the head, looking slightly ahead of it.
+        val ox = sin(yaw) * 10.5f * zoom; val oz = cos(yaw) * 10.5f * zoom; val oy = 13.5f * zoom
         val wx = focusX + ox; val wy = max(3f, oy); val wz = focusZ + oz
         val kp = 1f - exp(-dt / (0.18f / sens) * 1.6f)
         if (!camInit) { camX = wx; camY = wy; camZ = wz; camInit = true }
@@ -612,6 +626,9 @@ class GameRenderer(
             h.boostReady = p.boost.ready
             h.skin = p.skin
             h.alive = p.alive
+            h.eatenBy = p.lastEatenBy
+            h.respawnIn = p.respawnCountdown
+            h.peopleCount = world.chains.count { it.isHuman }
             p.segments.firstOrNull()?.let { if (project(it.x, 0.5f, -it.y, scr)) { h.headScreenX = scr[0]; h.headScreenY = scr[1] } }
 
             // Danger / edge.
@@ -634,7 +651,7 @@ class GameRenderer(
             if (leaderboardTimer <= 0f) {
                 leaderboardTimer = 0.4f
                 sortedScratch.clear(); scoreScratch.clear()
-                for (c in world.chains) if (c.alive || c === p) { sortedScratch += c; scoreScratch += c.stats.score }
+                for (c in world.chains) if (c.alive || c === p || c.isHuman) { sortedScratch += c; scoreScratch += c.stats.score }
                 val pi = sortedScratch.indexOf(p)
                 h.rank = RankCalculator.rankOf(scoreScratch, pi)
                 h.competitors = sortedScratch.size
@@ -642,11 +659,11 @@ class GameRenderer(
                 var n = 0; var shown = false
                 for (i in 0 until min(5, sortedScratch.size)) {
                     val c = sortedScratch[i]
-                    h.lbNames[n] = c.name; h.lbScores[n] = c.stats.score; h.lbRanks[n] = i + 1; h.lbIsPlayer[n] = c === p
+                    h.lbNames[n] = c.name; h.lbScores[n] = c.stats.score; h.lbRanks[n] = i + 1; h.lbIsPlayer[n] = c === p; h.lbIsHuman[n] = c.isHuman
                     if (c === p) shown = true
                     n++
                 }
-                if (!shown) { h.lbNames[n] = p.name; h.lbScores[n] = p.stats.score; h.lbRanks[n] = h.rank; h.lbIsPlayer[n] = true; n++ }
+                if (!shown) { h.lbNames[n] = p.name; h.lbScores[n] = p.stats.score; h.lbRanks[n] = h.rank; h.lbIsPlayer[n] = true; h.lbIsHuman[n] = true; n++ }
                 h.lbCount = n
             }
 

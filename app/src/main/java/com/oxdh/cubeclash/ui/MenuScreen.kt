@@ -48,6 +48,7 @@ class MenuScreen(private val activity: MainActivity) : FrameLayout(activity) {
         col.addView(card, Ui.matchWrap())
 
         col.addView(Ui.button(context, "PLAY", Ui.GOOD, 30f) { activity.startGame(settings.lastMode, settings.lastDifficulty) }, Ui.matchWrap())
+        col.addView(Ui.button(context, "PLAY WITH FRIENDS", Ui.PRIMARY, 20f) { open { MultiplayerDialog.open(this, activity) { closed() } } }, Ui.matchWrap())
 
         val row1 = Ui.horizontal(context, 10f)
         row1.addView(Ui.button(context, "Settings", Ui.PRIMARY, 15f) { open { Dialogs.settings(this, settings, save) { closed() } } }, Ui.weighted())

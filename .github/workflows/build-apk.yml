@@ -35,7 +35,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run engine tests
+      - name: Run engine tests (incl. LAN sockets and a live online-relay session)
+        env:
+          CUBECLASH_ONLINE_TESTS: "1"
         run: ./gradlew :engine:test --stacktrace 2>&1 | tee engine.log; exit ${PIPESTATUS[0]}
 
       - name: Optional release signing

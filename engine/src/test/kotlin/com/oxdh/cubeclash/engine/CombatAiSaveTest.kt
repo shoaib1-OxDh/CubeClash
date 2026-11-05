@@ -10,40 +10,59 @@ class CombatTest {
     private fun snap(id: Int, level: Int, total: Double = Math.pow(2.0, level.toDouble()), prot: Boolean = false) =
         ChainSnapshot(id, level, total, protected = prot)
 
-    @Test fun outcomes() {
+    @Test fun eatOnlyStrictlySmallerNumbers() {
         val r = RulesConfig()
-        assertEquals(CombatOutcome.DEFENDER_DEFEATED, CombatResolver.resolve(snap(1, 4), snap(2, 3), 0, r))
-        assertEquals(CombatOutcome.DEFENDER_SEVERED, CombatResolver.resolve(snap(1, 4), snap(2, 3), 2, r))
-        assertEquals(CombatOutcome.DEFENDER_DEFEATED, CombatResolver.resolve(snap(1, 4), snap(2, 3), 2, r.copy(severOnBodyHit = false)))
-        assertEquals(CombatOutcome.ATTACKER_DEFEATED, CombatResolver.resolve(snap(1, 2), snap(2, 5), 3, r))
-        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, r))
-        assertEquals(CombatOutcome.BOTH_DEFEATED, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, r.copy(tieRule = TieRule.BOTH_DEFEATED)))
-        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, r.copy(tieRule = TieRule.IGNORE)))
-        val tv = r.copy(strengthMetric = StrengthMetric.TOTAL_VALUE)
-        assertEquals(CombatOutcome.ATTACKER_DEFEATED, CombatResolver.resolve(snap(1, 3, 8.0), snap(2, 2, 30.0), 0, tv))
+        // My head is 8 (level 3): I can eat 1, 2, 4 ...
+        for (l in 0..2) assertEquals(CombatOutcome.DEFENDER_DEFEATED, CombatResolver.resolve(snap(1, 3), snap(2, l), 0, l, r))
+        // ... but not 8 or more: equal heads bounce, bigger ones are solid.
+        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, 3, r))
+        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 3), snap(2, 5), 0, 5, r))
+        assertTrue(CombatResolver.canEat(3, 2)); assertFalse(CombatResolver.canEat(3, 3)); assertFalse(CombatResolver.canEat(3, 4))
     }
 
-    @Test fun protectionAndPermissions() {
+    @Test fun bodyCubesAreEatenPerCube() {
         val r = RulesConfig()
-        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 5), snap(2, 1, prot = true), 0, r))
-        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 1).copy(canBeDefeated = false), snap(2, 6), 0, r))
-        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 1), snap(2, 6).copy(canDefeatOthers = false), 0, r))
-        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 5), snap(2, 1).copy(alive = false), 0, r))
-        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 5), snap(1, 5), 0, r))
+        // A smaller snake (head 4) bites the tail of a bigger one where the tail cube is 2: it eats from there.
+        assertEquals(CombatOutcome.DEFENDER_SEVERED, CombatResolver.resolve(snap(1, 2), snap(2, 5), 3, 1, r))
+        // ... but a body cube that is not smaller than its head is solid.
+        assertEquals(CombatOutcome.BLOCKED, CombatResolver.resolve(snap(1, 2), snap(2, 5), 1, 4, r))
+        assertEquals(CombatOutcome.BLOCKED, CombatResolver.resolve(snap(1, 2), snap(2, 5), 1, 2, r))
+        // With severing disabled a body bite eats the whole snake.
+        assertEquals(CombatOutcome.DEFENDER_DEFEATED, CombatResolver.resolve(snap(1, 4), snap(2, 3), 2, 1, r.copy(severOnBodyHit = false)))
     }
 
-    @Test fun sameFrameContactsResolveOncePerChain() {
+    @Test fun tieRules() {
+        val r = RulesConfig()
+        assertEquals(CombatOutcome.BOTH_DEFEATED, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, 3, r.copy(tieRule = TieRule.BOTH_DEFEATED)))
+        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 3), snap(2, 3), 0, 3, r.copy(tieRule = TieRule.IGNORE)))
+    }
+
+    @Test fun protectionAndPermissionsMakeContactsSolid() {
+        val r = RulesConfig()
+        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 5), snap(2, 1, prot = true), 0, 1, r))
+        assertEquals(CombatOutcome.BLOCKED, CombatResolver.resolve(snap(1, 5), snap(2, 4, prot = true), 2, 1, r))
+        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 6), snap(2, 1).copy(canBeDefeated = false), 0, 1, r))
+        assertEquals(CombatOutcome.BOUNCE, CombatResolver.resolve(snap(1, 6).copy(canDefeatOthers = false), snap(2, 1), 0, 1, r))
+        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 5), snap(2, 1).copy(alive = false), 0, 1, r))
+        assertEquals(CombatOutcome.NONE, CombatResolver.resolve(snap(1, 5), snap(1, 5), 0, 5, r))
+    }
+
+    @Test fun sameFrameEatsOncePerChainAndEatsWinOverBlocks() {
         val snaps = mapOf(1 to snap(1, 6), 2 to snap(2, 2), 3 to snap(3, 3))
         val contacts = listOf(
-            Contact(1, 2, 0, 0.3f), Contact(1, 2, 1, 0.2f), Contact(2, 1, 3, 0.25f), Contact(1, 3, 0, 0.1f))
+            Contact(2, 1, 3, 0.4f, 6),   // 2 runs into 1's big body: blocked
+            Contact(1, 2, 0, 0.3f, 2),   // 1 bites 2's head
+            Contact(1, 2, 1, 0.2f, 1),
+            Contact(1, 3, 0, 0.1f, 3))   // 1 also touches 3 the same frame
         val out = mutableListOf<ResolvedContact>()
         CombatResolver.resolveFrame(contacts, { snaps[it] }, RulesConfig(), out)
-        assertEquals(1, out.size)
-        assertEquals(CombatOutcome.DEFENDER_DEFEATED, out[0].outcome)
-        assertEquals(2, out[0].contact.defenderId)
-
+        val eats = out.filter { it.outcome == CombatOutcome.DEFENDER_DEFEATED }
+        assertEquals(1, eats.size)
+        assertEquals(2, eats[0].contact.defenderId)
+        assertTrue("the eaten chain gets no further response", out.none { it.contact.attackerId == 2 })
+        // Independent pairs both resolve.
         val snaps2 = mapOf(1 to snap(1, 6), 2 to snap(2, 2), 3 to snap(3, 3), 4 to snap(4, 1))
-        CombatResolver.resolveFrame(listOf(Contact(1, 2, 0, 0.1f), Contact(3, 4, 0, 0.1f)), { snaps2[it] }, RulesConfig(), out)
+        CombatResolver.resolveFrame(listOf(Contact(1, 2, 0, 0.1f, 2), Contact(3, 4, 0, 0.1f, 1)), { snaps2[it] }, RulesConfig(), out)
         assertEquals(2, out.size)
     }
 

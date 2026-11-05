@@ -20,25 +20,53 @@ On the phone: open the APK and allow installing from that source. New builds ins
 
 ## Gameplay
 
-* **Move** with the floating joystick (touch the lower-left of the screen) or *Tap to steer*. The chain always
-  moves; you steer.
-* **Collect** cubes whose number is ≤ your leading cube; bigger ones are greyed out until you grow.
+* **Move** — put a finger down **anywhere** and drag: the snake turns towards the drag direction and keeps moving
+  (alternative in Settings: *Point to steer*). Works in portrait and landscape.
+* **Boost** — hold a **second finger** anywhere (steer with one thumb, boost with the other), or double-tap and hold
+  with one finger. Boost drains an energy bar that refills when released.
+* **Collect** cubes whose number is not bigger than your leading cube. **Bigger cubes are solid**: the snake can't
+  pass through them, they barely give way, and pushing against one slows you down strongly until you turn away.
 * **Merge**: equal neighbours merge into double, one step at a time
   (`[8,4,2,1] + 1 → [8,4,2,2] → [8,4,4] → [8,8] → [16]`).
-* **Boost** (lower-right) drains the energy ring; it refills when released.
-* **Fight**: your leading cube is your strength. Hit a weaker rival's head to defeat it or its body to cut its tail;
-  hit a stronger rival and you're out; equal strength bounces. Defeated chains burst into cubes.
-* **Modes**: Classic Arena, Endless Growth (you can't be defeated), Survival Challenge (rivals ramp up every minute).
-  **Rivals**: Easy / Normal / Hard.
+* **Eat snakes by number** — your number is your leading cube. The *front* of your head eats any snake cube with a
+  **smaller** number: bite the head to eat the whole snake, a body cube to eat it and everything behind it. Equal or
+  bigger numbers are solid (heads bounce, bodies block). Moving, standing still or boosting never changes this.
+  Small snakes can nibble your small tail cubes from behind — turn around and eat them.
+* **Modes**: Classic Arena, Endless Growth, Survival Challenge (solo). **Rivals**: Easy / Normal / Hard.
+* **Play with Friends** — see below.
 
-Exact, configurable rules: [`docs/GAME_RULES.md`](docs/GAME_RULES.md).
+Exact rules: [`docs/GAME_RULES.md`](docs/GAME_RULES.md).
+
+## Multiplayer
+
+*Menu → PLAY WITH FRIENDS*. Rooms are drop-in: friends can join at any time, eaten players respawn after 3 s, the
+leaderboard shows everyone live, and the host can add 0 / 3 / 6 bots.
+
+| | How | Needs |
+|---|---|---|
+| **Local** | *Create local room* on one phone; friends tap *Find rooms* (automatic discovery) or type the address shown in the room. | Same Wi-Fi, or friends connected to the host's hotspot. No internet. |
+| **Online** | *Create online room* → share the 6-character code (*Invite friends*). Friends enter it under *Join*. | Internet on every phone. |
+
+Architecture: the host's phone runs the only real simulation (`HostSession` + `World`), so every rule — eating,
+solid cubes, collisions, scores — is decided in one place and everybody sees the same game. Players send their touch
+input ~20×/s; the host sends the world state ~20×/s (chains, numbers, boosts, scores, cube changes, events) plus a
+periodic full resync. Clients (`ClientSession`) render a replica with snapshot interpolation. If a player's
+connection drops, the host keeps their snake (an AI stands in) for 60 s; the client reconnects automatically (or with
+*Reconnect now*) and gets the same snake back.
+
+Transports (same protocol): `Lan` — TCP frames + UDP broadcast room discovery; `Online` — MQTT 3.1.1 over TLS through
+free public relays (`broker.hivemq.com`, `broker.emqx.io`, `test.mosquitto.org`; the first letter of the room code
+picks the relay). Public relays need no account or server, but they are shared infrastructure: room traffic is
+TLS-encrypted to the relay but not end-to-end, and availability is best-effort. For a production launch, point
+`Online.RELAYS` at your own MQTT broker (e.g. Mosquitto). The host must keep the app in the foreground.
 
 ## Project structure
 
 ```
 engine/   Pure Kotlin/JVM game simulation (no Android): numbers & merging (MergeSystem), chain model, path trail,
-          spatial hash, weighted spawning, combat rules, AI, boost, modes, save data, and World — the complete
-          arena simulation stepped once per frame. Unit tests in engine/src/test.
+          spatial hash, weighted spawning, number-based eating (CombatResolver), AI, boost, modes, save data, and
+          World — the complete arena simulation. net/: Protocol, HostSession, ClientSession, Lan, Online (MQTT),
+          NetBot (headless peer for CI). Unit tests in engine/src/test.
 app/      Android app (framework only, no AndroidX):
   MainActivity        menu ↔ arena, lifecycle, back button, keyboard
   GameSession         one run: World + input brain + flags
@@ -51,7 +79,9 @@ app/      Android app (framework only, no AndroidX):
   SaveStore, Settings JSON progress with backup + sanitising; SharedPreferences settings
 .github/workflows/
   build-apk.yml             tests + debug & release APKs on every push (no secrets needed)
-  emulator-screenshots.yml  runs the APK on an emulator and captures screenshots (branch `emulator-screens`)
+  emulator-screenshots.yml  runs the APK on an emulator: menu, solo, touch gestures, a LAN room hosted by the app
+                            with a bot joining, and an online room hosted by a bot that the app joins
+                            (screenshots on branch `emulator-screens`)
 ```
 
 Threading: the `World` is stepped on the GL thread inside `onDrawFrame`; the UI thread only writes the input
@@ -97,7 +127,8 @@ zoom, follow speed, minimap, low effects, 30/60 FPS, reset progress.
 
 ## Technical notes
 
-* Min Android 7.0 (API 24), target API 35, OpenGL ES 3.0, no permissions, works offline.
+* Min Android 7.0 (API 24), target API 35, OpenGL ES 3.0. Single player works offline; multiplayer uses only
+  normal network permissions (no runtime prompts).
 * Portrait and landscape, notches and gesture bars handled (safe insets).
 * Performance: one instanced draw call for all cubes, one per sprite layer; spatial hashes for queries;
   change-only label strings; idle animation only near the camera; low-effects mode and 30 FPS option.

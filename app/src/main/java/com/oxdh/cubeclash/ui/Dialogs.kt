@@ -25,9 +25,9 @@ object Dialogs {
             col.addView(Ui.sliderRow(c, "Music", 0f, 1f, s.musicVolume) { s.musicVolume = it })
             col.addView(Ui.sliderRow(c, "Effects", 0f, 1f, s.sfxVolume) { s.sfxVolume = it })
             col.addView(Ui.header(c, "Controls"))
-            col.addView(Ui.segmented(c, "Steering", listOf("Joystick", "Tap to steer"), s.controls) { s.controls = it })
+            col.addView(Ui.segmented(c, "Steering", listOf("Drag anywhere", "Point to steer"), s.controls) { s.controls = it })
             col.addView(Ui.sliderRow(c, "Turn speed", 0.5f, 1.6f, s.turnSensitivity) { s.turnSensitivity = it })
-            col.addView(Ui.sliderRow(c, "Joystick size", 0.7f, 1.4f, s.joystickScale) { s.joystickScale = it })
+            col.addView(Ui.sliderRow(c, "Drag distance", 0.7f, 1.4f, s.joystickScale) { s.joystickScale = it })
             col.addView(Ui.header(c, "Camera"))
             col.addView(Ui.segmented(c, "Camera", listOf("Fixed angle", "Follow heading"), s.cameraMode) { s.cameraMode = it })
             col.addView(Ui.sliderRow(c, "Zoom", 0.7f, 1.5f, s.cameraZoom) { s.cameraZoom = it })
@@ -130,13 +130,14 @@ object Dialogs {
     }
 
     const val HOW_TO_PLAY =
-        "<b>Move</b><br>Drag anywhere on the lower-left of the screen to use the joystick. Your chain never stops moving — you steer. Prefer tapping? Switch to <i>Tap to steer</i> in Settings.<br><br>" +
-        "<b>Collect</b><br>You start as a single cube showing <b>1</b>. Drive into cubes whose number is <b>equal to or lower than your leading cube</b> to add them to your chain. Bigger cubes are greyed out: you can't take them yet.<br><br>" +
+        "<b>Move</b><br>Put a finger down anywhere and drag in the direction you want to go. Your snake never stops moving — you steer. Prefer pointing? Switch to <i>Point to steer</i> in Settings.<br><br>" +
+        "<b>Collect</b><br>You start as a single cube showing <b>1</b>. Drive into cubes whose number is <b>not bigger than your leading cube</b> to eat them. Bigger cubes are solid and greyed out: ramming them only slows you down — steer around them.<br><br>" +
         "<b>Merge</b><br>Two neighbouring cubes with the same number merge into double: 1+1=2, 2+2=4, 4+4=8 … Your chain stays sorted, biggest at the front, and merges cascade one step at a time.<br><br>" +
-        "<b>Boost</b><br>Hold BOOST (lower-right) to speed up. It drains the ring, which refills when you let go.<br><br>" +
-        "<b>Rivals</b><br>Your leading cube is your strength. Hit a weaker rival's head to defeat it, or its body to cut off its tail. Run into a stronger rival and you're out. Equal strength bounces apart. Defeated chains burst into collectible cubes.<br><br>" +
+        "<b>Boost</b><br>While steering with one thumb, hold a <b>second finger</b> anywhere to boost (or double-tap and hold). It drains the energy bar, which refills when you let go.<br><br>" +
+        "<b>Eating snakes</b><br>Your number is your leading cube. With the front of your head you can eat any snake cube with a <b>smaller</b> number: bite the head to eat the whole snake, or the tail to eat it from there. Equal or bigger numbers are solid — you bounce off. Small snakes can nibble your small tail cubes from behind, so turn around fast and eat them!<br><br>" +
         "<b>Watch out</b><br>Name tags are <font color='#FF8C99'>red</font> on rivals bigger than you and <font color='#9CFFB3'>green</font> on rivals you can beat. The minimap uses the same colours.<br><br>" +
-        "<b>Modes</b><br>Classic Arena: compete and survive.<br>Endless Growth: relaxed — you can't be defeated.<br>Survival Challenge: rivals get tougher every minute and boost recovers slowly."
+        "<b>Modes</b><br>Classic Arena: compete and survive.<br>Endless Growth: relaxed — you can't be eaten.<br>Survival Challenge: rivals get tougher every minute and boost recovers slowly.<br><br>" +
+        "<b>Play with friends</b><br>Local: everyone on the same Wi-Fi or your hotspot. Online: create a room and share its code. In multiplayer you respawn after being eaten; the leaderboard shows everyone live."
 
     const val CREDITS =
         "<b>Cube Clash</b> — an original game inspired by number-merging snake .io games.<br><br>" +

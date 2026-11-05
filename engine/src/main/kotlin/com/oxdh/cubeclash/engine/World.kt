@@ -65,6 +65,18 @@ class Chain internal constructor(
     var desiredDirection: Vec2? = null
     var wantsBoost = false
 
+    /** 0..1: how strongly the chain is currently held back by something solid (bigger cube or snake). */
+    var resistance = 0f; internal set
+    /** True for chains controlled by people (local or remote), false for bots. */
+    var isHuman = isPlayer; internal set
+    /** Multiplayer: false while a remote player is disconnected (an AI keeps the chain alive meanwhile). */
+    var connected = true
+    /** Name of the chain that last ate this one (for "eaten by X" messages). */
+    var lastEatenBy: String? = null; internal set
+    /** Seconds until this chain respawns (0 when alive or not respawning). */
+    var respawnCountdown = 0f
+    internal fun lastEatenByName(n: String?) { lastEatenBy = n }
+
     val segments = ArrayList<Segment>(32)
     val absorbing = ArrayList<AbsorbingSegment>(8)
     internal val byId = HashMap<Int, Segment>(32)
@@ -84,7 +96,10 @@ class Chain internal constructor(
 }
 
 /** A numbered cube lying in the arena. */
-class Collectible internal constructor(val id: Int, val level: Int, val x: Float, val y: Float, val size: Float, val isDrop: Boolean, val spawnTime: Double) {
+class Collectible internal constructor(val id: Int, val level: Int, x: Float, y: Float, val size: Float, val isDrop: Boolean, val spawnTime: Double) {
+    /** Position; bigger cubes can be pushed (slowly) by snakes ramming them. */
+    var x = x; internal set
+    var y = y; internal set
     enum class State { SPAWNING, IDLE, COLLECTING }
     var state = State.SPAWNING; internal set
     /** Animation clock (seconds since spawn / since collection started). */
@@ -107,14 +122,37 @@ sealed class WorldEvent {
     data class Severed(val victim: Chain, val attacker: Chain, val x: Float, val y: Float) : WorldEvent()
     data class Bounced(val a: Chain, val b: Chain, val x: Float, val y: Float) : WorldEvent()
     data class BoostStarted(val chain: Chain) : WorldEvent()
+    /** A chain pushed against something solid it may not eat (throttled per chain). */
+    data class Blocked(val chain: Chain, val x: Float, val y: Float) : WorldEvent()
+    data class Respawned(val chain: Chain) : WorldEvent()
 }
 
 interface Brain { fun think(world: World, chain: Chain, dt: Float) }
 
+/** Options for multiplayer hosts and network replicas. */
+data class WorldOptions(
+    /** Number of AI rivals (defaults to the mode's rival count). */
+    val botCount: Int? = null,
+    /** Multiplayer: defeated people respawn after [humanRespawnDelay] instead of ending the game. */
+    val respawnHumans: Boolean = false,
+    val humanRespawnDelay: Float = 3f,
+    /** Record collectible spawns / removals / moves for network replication. */
+    val trackNetChanges: Boolean = false,
+    /** Client replica: no simulation; state is applied from the network. */
+    val replica: Boolean = false,
+    /** Use these obstacles instead of generating them (replicas receive them from the host). */
+    val obstacles: List<Obstacle>? = null,
+    val playerName: String = "You",
+)
+
 /**
  * The complete arena simulation: chain movement along recorded paths, Hybrid merging, weighted collectible
- * spawning with a spatial hash, head-vs-cube collisions resolved by [CombatResolver], AI rivals, respawns and the
- * Survival difficulty ramp. Deterministic for a given seed. Call [step] once per frame; read [events] afterwards.
+ * spawning with a spatial hash, solid bigger cubes, number-based eating resolved by [CombatResolver], AI rivals,
+ * human players (multiplayer), respawns and the Survival ramp. Deterministic for a given seed.
+ * Call [step] once per frame; read [events] afterwards.
+ *
+ * In replica mode (network clients) nothing is simulated: the client applies host state with the replica* methods
+ * and calls [replicaFrame] to animate.
  */
 class World(
     val config: GameConfig,
@@ -123,7 +161,9 @@ class World(
     seed: Long,
     playerSkin: String = UnlockCatalog.DEFAULT_SKIN,
     playerTrail: String = UnlockCatalog.DEFAULT_TRAIL,
+    val options: WorldOptions = WorldOptions(),
 ) {
+    val seed = seed
     val rng = Rng(seed)
     val rules = config.rules.copy().sanitize()
     val merge = MergeSystem(rules)
@@ -132,9 +172,11 @@ class World(
     val arenaRadius = max(30f, config.arena.radius)
     val obstacles = ArrayList<Obstacle>()
     val chains = ArrayList<Chain>()
-    val player: Chain
+    /** The chain controlled on this device. */
+    var player: Chain; private set
     val collectibles = ArrayList<Collectible>(512)
     val collecting = ArrayList<Collectible>(32)
+    private val collectibleById = HashMap<Int, Collectible>(512)
     private val hash = SpatialHash<Collectible>(6f)
     private val segmentHash = SpatialHash<Segment>(4f)
     private val table = WeightedTable(config.spawn.distribution)
@@ -143,14 +185,23 @@ class World(
     private val baseAI: AIBehaviourConfig
     private var rampTimer = 0f
     private var nextCollectibleId = 1
+    private var nextChainId = 1000
+    private val blockedSoundTimer = HashMap<Int, Float>()
 
-    /** Events produced by the last [step]. */
+    /** Events produced by the last [step] / [replicaFrame]. */
     val events = ArrayList<WorldEvent>(32)
     var time = 0.0; private set
-    /** Set when the player is defeated (game over in Classic / Survival). */
+    /** Single player: set when the player is eaten (game over in Classic / Survival). */
     var playerDefeated = false; private set
-    /** When false the player is ignored by the simulation (run ended). */
+    /** When true the local player is ignored by the simulation (run ended). */
     var playerFrozen = false
+
+    // Network change tracking (host).
+    val netSpawned = ArrayList<Collectible>()
+    /** (collectible id, collector chain id or 0). */
+    val netRemoved = ArrayList<Long>()
+    val netMoved = LinkedHashSet<Collectible>()
+    val netEvents = ArrayList<WorldEvent>()
 
     private val tmp = FloatArray(2)
     private val chainEvents = ArrayList<ChainEvent>(16)
@@ -160,20 +211,23 @@ class World(
     private val resolved = ArrayList<ResolvedContact>(8)
 
     init {
-        buildObstacles()
-        player = createChain(1, "You", true, playerSkin, playerTrail, 0xFFFFFFFF.toInt())
+        if (options.obstacles != null) obstacles.addAll(options.obstacles) else if (!options.replica) buildObstacles()
+        player = createChain(1, options.playerName, true, playerSkin, playerTrail, 0xFFFFFFFF.toInt())
         player.canBeDefeated = mode.playerCanBeDefeated
-        spawnChain(player, Vec2.ZERO, MathUtil.PI * 0.5f, listOf(rules.startLevel))
-
         baseAI = config.aiFor(difficulty).let { if (mode.rivalsAggressive) it.copy() else it.passive() }
-        val names = RIVAL_NAMES.toMutableList()
-        for (i in 0 until mode.rivalCount) {
-            val name = names.removeAt(rng.range(0, names.size))
-            val rival = createChain(i + 2, name, false, UnlockCatalog.DEFAULT_SKIN, UnlockCatalog.DEFAULT_TRAIL, TEAM_COLORS[i % TEAM_COLORS.size])
-            rival.brain = AIBrain(baseAI.copy(), Rng(seed + i * 7919L + 13))
-            spawnRival(rival, true)
+        if (!options.replica) {
+            spawnChain(player, Vec2.ZERO, MathUtil.PI * 0.5f, listOf(rules.startLevel))
+            val names = RIVAL_NAMES.toMutableList()
+            for (i in 0 until (options.botCount ?: mode.rivalCount).coerceIn(0, 20)) {
+                val name = if (names.isNotEmpty()) names.removeAt(rng.range(0, names.size)) else "Bot ${i + 1}"
+                val rival = createChain(i + 2, name, false, UnlockCatalog.DEFAULT_SKIN, UnlockCatalog.DEFAULT_TRAIL, TEAM_COLORS[i % TEAM_COLORS.size])
+                rival.brain = AIBrain(baseAI.copy(), Rng(seed + i * 7919L + 13))
+                spawnRival(rival, true)
+            }
+            fillInitial()
+        } else {
+            chains.remove(player) // placeholder until the host assigns our chain
         }
-        fillInitial()
     }
 
     private fun createChain(id: Int, name: String, isPlayer: Boolean, skin: String, trail: String, color: Int): Chain {
@@ -184,6 +238,7 @@ class World(
     }
 
     fun findChain(id: Int): Chain? = chains.firstOrNull { it.id == id }
+    fun findCollectible(id: Int): Collectible? = collectibleById[id]
 
     fun canCollect(chain: Chain, level: Int) = chain.alive && merge.canCollect(chain.model, level)
 
@@ -210,13 +265,40 @@ class World(
         }
     }
 
+    // ------------------------------------------------------------------ people (multiplayer)
+
+    /** Adds a person's chain (multiplayer host). It is controlled by an [InputBrain]. */
+    fun addHuman(name: String, skin: String, trail: String): Chain {
+        val id = nextChainId++
+        val c = createChain(id, name.take(16).ifBlank { "Player" }, false, skin, trail, TEAM_COLORS[(id * 7) % TEAM_COLORS.size])
+        c.isHuman = true
+        c.brain = InputBrain()
+        spawnChain(c, findRivalSpot(false), rng.nextFloat() * MathUtil.TWO_PI, listOf(rules.startLevel))
+        return c
+    }
+
+    fun removeChain(c: Chain) {
+        if (c === player) return
+        if (c.alive) {
+            val drops = c.segments.map { it.level to Vec2(it.x, it.y) }
+            c.alive = false
+            spawnDrops(drops)
+        }
+        respawn.remove(c)
+        chains.remove(c)
+    }
+
+    /** AI brain used while a remote player is disconnected. */
+    fun makeStandInBrain(): Brain = AIBrain(AIBehaviourConfig.forDifficulty(AIDifficulty.NORMAL).passive(), Rng(rng.nextLong()))
+
     // ------------------------------------------------------------------ spawning chains
 
-    private fun spawnChain(c: Chain, pos: Vec2, heading: Float, levels: List<Int>) {
+    internal fun spawnChain(c: Chain, pos: Vec2, heading: Float, levels: List<Int>, keepStats: Boolean = false) {
         c.segments.clear(); c.absorbing.clear(); c.byId.clear()
         c.model.setLevels(levels)
         c.heading = heading
         c.speed = 0f
+        c.resistance = 0f
         c.desiredDirection = null
         c.wantsBoost = false
         c.boost.refill()
@@ -224,7 +306,7 @@ class World(
         c.alive = true
         c.protection = rules.spawnProtectionSeconds
         c.trail.reset(pos, Vec2.fromAngle(heading), 30f)
-        c.stats.reset(c.model.headLevel)
+        if (!keepStats) c.stats.reset(c.model.headLevel)
         c.lastHeadLevel = -1
         syncSegments(c, true)
     }
@@ -252,7 +334,7 @@ class World(
             var nearest = Float.MAX_VALUE
             for (c in chains) {
                 if (!c.alive) continue
-                nearest = min(nearest, Vec2.distance(c.headPosition, p) - (if (c.isPlayer) minFromPlayer else 12f))
+                nearest = min(nearest, Vec2.distance(c.headPosition, p) - (if (c.isHuman) minFromPlayer else 12f))
             }
             if (nearest >= 0f) return p
             if (nearest > bestScore) { bestScore = nearest; best = p }
@@ -264,20 +346,38 @@ class World(
 
     fun step(dtIn: Float) {
         events.clear()
-        val dt = min(dtIn, 1f / 20f)
-        if (dt <= 0f) return
+        if (options.replica) return
+        var remaining = min(dtIn, 1f / 15f)
+        if (remaining <= 0f) return
+        // Sub-steps keep fast (boosting) snakes from tunnelling through cubes or each other.
+        while (remaining > 1e-5f) {
+            val dt = min(remaining, MAX_SUBSTEP)
+            remaining -= dt
+            subStep(dt)
+        }
+        val visualDt = min(dtIn, 1f / 15f)
+        for (c in chains) updateVisuals(c, visualDt)
+        updateCollectibles(visualDt)
+        replenish()
+        if (options.trackNetChanges) netEvents.addAll(events)
+    }
+
+    private fun subStep(dt: Float) {
         time += dt
         if (player.alive && !playerFrozen) player.stats.addTime(dt.toDouble())
-
-        for (c in chains) if (c.alive && !(c.isPlayer && playerFrozen)) c.brain?.think(this, c, dt)
+        for (c in chains) if (c.alive && c.isHuman && c !== player) c.stats.addTime(dt.toDouble())
+        for (c in chains) if (c.alive && !(c === player && playerFrozen)) c.brain?.think(this, c, dt)
         if (playerFrozen) { player.desiredDirection = null; player.wantsBoost = false; player.speedMultiplier = 0f }
         for (c in chains) simulate(c, dt)
         collectAndFight()
-        for (c in chains) updateVisuals(c, dt)
-        updateCollectibles(dt)
-        replenish()
+        // Eating can grow a head next to a pillar or the edge: keep every head in a legal spot.
+        for (c in chains) if (c.alive) {
+            constrain(c.headRadius(move), c.headX, c.headY)
+            if (legal[0] != c.headX || legal[1] != c.headY) c.trail.moveHead(legal[0], legal[1])
+        }
         updateRespawns(dt)
         updateRamp(dt)
+        if (blockedSoundTimer.isNotEmpty()) blockedSoundTimer.replaceAll { _, v -> v - dt }
     }
 
     private fun simulate(c: Chain, dt: Float) {
@@ -286,10 +386,12 @@ class World(
         c.boost.update(dt, c.wantsBoost)
         if (c.boost.isBoosting && !c.wasBoosting) events.add(WorldEvent.BoostStarted(c))
         c.wasBoosting = c.boost.isBoosting
+        c.resistance = max(0f, c.resistance - dt * 2.5f)
 
-        val target = move.baseSpeed * move.speedFactor(c.model.headLevel) * c.speedMultiplier *
+        var target = move.baseSpeed * move.speedFactor(c.model.headLevel) * c.speedMultiplier *
             (if (c.boost.isBoosting) c.boost.config.speedMultiplier else 1f)
-        c.speed = MathUtil.moveTowards(c.speed, target, (if (target > c.speed) move.acceleration else move.deceleration) * dt)
+        target *= 1f - 0.7f * c.resistance
+        c.speed = MathUtil.moveTowards(c.speed, target, (if (target > c.speed) move.acceleration else move.deceleration * 3f) * dt)
 
         val desired = c.desiredDirection
         if (desired != null && desired.lengthSquared > 1e-6f) {
@@ -318,7 +420,31 @@ class World(
             px = o.position.x + n.x * minD; py = o.position.y + n.y * minD
             fwd = slide(c, -n, fwd)
         }
-        c.trail.moveHead(px, py)
+
+        // Bigger numbered cubes are solid: the head cannot enter them. Ramming one pushes it slowly and the snake
+        // is held back strongly until it turns away.
+        colQuery.clear()
+        hash.query(px, py, headR + 1.6f, colQuery)
+        for (col in colQuery) {
+            if (col.state == Collectible.State.COLLECTING || merge.canCollect(c.model, col.level)) continue
+            var dx = px - col.x; var dy = py - col.y
+            var dist = sqrt(dx * dx + dy * dy)
+            val minD = headR + col.radius * 0.95f
+            if (dist >= minD) continue
+            val n = if (dist > 1e-4f) Vec2(dx / dist, dy / dist) else -fwd
+            val pen = minD - dist
+            // The cube gives way a little (heavier the bigger it is), the rest is resolved by moving the head out.
+            val give = pen * (0.3f / (1f + 0.15f * (col.level - c.model.headLevel).coerceAtLeast(0)))
+            val nx = col.x - n.x * give; val ny = col.y - n.y * give
+            if (isFreeSpot(nx, ny, col.radius + 0.2f)) moveCollectible(col, nx, ny)
+            dx = px - col.x; dy = py - col.y
+            dist = sqrt(dx * dx + dy * dy)
+            if (dist < minD) { px = col.x + n.x * minD; py = col.y + n.y * minD }
+            fwd = slide(c, -n, fwd)
+            hold(c, px, py)
+        }
+        constrain(headR, px, py)
+        c.trail.moveHead(legal[0], legal[1])
 
         if (merge.hasPendingMerge(c.model)) {
             c.mergeTimer += dt
@@ -329,6 +455,36 @@ class World(
                 applyChainEvents(c, chainEvents)
             }
         } else c.mergeTimer = 0f
+    }
+
+    private val legal = FloatArray(2)
+
+    /** Final safety pass: puts a head position back inside the arena and outside every pillar (into [legal]). */
+    private fun constrain(headR: Float, xIn: Float, yIn: Float) {
+        var x = xIn; var y = yIn
+        repeat(2) {
+            for (o in obstacles) {
+                val dx = x - o.position.x; val dy = y - o.position.y
+                val dist = sqrt(dx * dx + dy * dy)
+                val minD = o.radius + headR
+                if (dist >= minD) continue
+                val nx = if (dist > 1e-4f) dx / dist else 1f; val ny = if (dist > 1e-4f) dy / dist else 0f
+                x = o.position.x + nx * minD; y = o.position.y + ny * minD
+            }
+            val lim = arenaRadius - headR
+            val l = sqrt(x * x + y * y)
+            if (l > lim) { x = x / l * lim; y = y / l * lim }
+        }
+        legal[0] = x; legal[1] = y
+    }
+
+    /** Applies strong resistance (something solid is in the way). */
+    private fun hold(c: Chain, x: Float, y: Float) {
+        c.resistance = 1f
+        val limit = move.baseSpeed * 0.3f
+        if (c.speed > limit) c.speed = limit
+        val t = blockedSoundTimer[c.id] ?: 0f
+        if (t <= 0f) { events.add(WorldEvent.Blocked(c, x, y)); blockedSoundTimer[c.id] = 0.6f }
     }
 
     /** Removes the movement component into a wall with outward normal [n]. */
@@ -345,10 +501,9 @@ class World(
     private fun bounce(c: Chain, awayIn: Vec2) {
         if (!c.alive || awayIn.lengthSquared < 1e-6f) return
         val away = awayIn.normalized
-        var p = c.headPosition + away * 0.8f
-        val lim = arenaRadius - c.headRadius(move)
-        if (p.length > lim) p = p.normalized * lim
-        c.trail.moveHead(p)
+        val p = c.headPosition + away * 0.8f
+        constrain(c.headRadius(move), p.x, p.y)
+        c.trail.moveHead(legal[0], legal[1])
         c.heading = away.angle
         c.speed *= 0.4f
     }
@@ -465,10 +620,10 @@ class World(
         }
     }
 
-    // ------------------------------------------------------------------ collisions & combat
+    // ------------------------------------------------------------------ collisions & eating
 
     private fun collectAndFight() {
-        // 1) Collection (spatial hash; ineligible cubes are ignored).
+        // 1) Collection: eligible cubes are eaten on contact; bigger ones are solid (handled in movement).
         for (c in chains) {
             if (!c.alive || c.segments.isEmpty()) continue
             colQuery.clear()
@@ -476,7 +631,7 @@ class World(
             hash.query(c.headX, c.headY, headR + 1.6f, colQuery)
             for (col in colQuery) {
                 if (col.state == Collectible.State.COLLECTING) continue
-                val r = headR + col.radius * 0.9f
+                val r = headR + col.radius * 0.95f + 0.05f
                 val dx = col.x - c.headX; val dy = col.y - c.headY
                 if (dx * dx + dy * dy > r * r) continue
                 if (!canCollect(c, col.level)) continue
@@ -484,7 +639,7 @@ class World(
             }
         }
 
-        // 2) Combat contacts: head vs other chains' cubes.
+        // 2) Snake contacts: the FRONT of a head touching another chain's cube.
         segmentHash.clear()
         for (c in chains) if (c.alive) for (s in c.segments) segmentHash.insert(s, s.x, s.y)
         contacts.clear()
@@ -492,16 +647,24 @@ class World(
             if (!a.alive || a.segments.isEmpty()) continue
             segQuery.clear()
             val headR = a.headRadius(move)
+            val f = a.forward
             segmentHash.query(a.headX, a.headY, headR + 1.5f, segQuery)
             for (s in segQuery) {
                 val dch = s.chain
                 if (dch === a || !dch.alive) continue
                 val dx = s.x - a.headX; val dy = s.y - a.headY
-                val pen = headR + s.radius * 0.9f - sqrt(dx * dx + dy * dy)
+                val dist = sqrt(dx * dx + dy * dy)
+                val pen = headR + s.radius * 0.9f - dist
                 if (pen <= 0f) continue
+                // Only the front half of the head bites; brushing past with the back of the head does nothing.
+                if (dist > 1e-4f && (dx * f.x + dy * f.y) / dist < -0.25f) continue
                 val existing = contacts.indexOfFirst { it.attackerId == a.id && it.defenderId == dch.id }
-                val contact = Contact(a.id, dch.id, s.index, pen)
-                if (existing < 0) contacts.add(contact) else if (contacts[existing].penetration < pen) contacts[existing] = contact
+                val contact = Contact(a.id, dch.id, s.index, pen, s.level)
+                if (existing < 0) contacts.add(contact) else {
+                    // Prefer biting the head, then the deepest contact.
+                    val e = contacts[existing]
+                    if ((s.index == 0 && e.defenderSegmentIndex != 0) || (e.defenderSegmentIndex != 0 && e.penetration < pen)) contacts[existing] = contact
+                }
             }
         }
         if (contacts.isEmpty()) return
@@ -514,34 +677,51 @@ class World(
         val d = findChain(r.contact.defenderId) ?: return
         when (r.outcome) {
             CombatOutcome.DEFENDER_DEFEATED -> defeat(d, a)
-            CombatOutcome.ATTACKER_DEFEATED -> defeat(a, d)
             CombatOutcome.BOTH_DEFEATED -> { defeat(a, null); defeat(d, null) }
             CombatOutcome.DEFENDER_SEVERED -> sever(d, a, r.contact.defenderSegmentIndex)
             CombatOutcome.BOUNCE -> {
                 var away = a.headPosition - d.headPosition
                 if (away.lengthSquared < 1e-4f) away = -a.forward
                 bounce(a, away)
-                if (r.contact.defenderSegmentIndex == 0) bounce(d, -away)
+                bounce(d, -away)
                 events.add(WorldEvent.Bounced(a, d, a.headX, a.headY))
             }
+            CombatOutcome.BLOCKED -> block(a, d, r.contact.defenderSegmentIndex)
             CombatOutcome.NONE -> {}
         }
     }
 
+    /** Solid contact with a cube the attacker may not eat: push the head back out and hold it back. */
+    private fun block(a: Chain, d: Chain, index: Int) {
+        val s = d.segments.getOrNull(index) ?: return
+        val headR = a.headRadius(move)
+        var nx = a.headX - s.x; var ny = a.headY - s.y
+        var dist = sqrt(nx * nx + ny * ny)
+        if (dist < 1e-4f) { nx = -a.forward.x; ny = -a.forward.y; dist = 1f }
+        nx /= dist; ny /= dist
+        val minD = headR + s.radius * 0.9f + 0.02f
+        constrain(headR, s.x + nx * minD, s.y + ny * minD)
+        a.trail.moveHead(legal[0], legal[1])
+        slide(a, Vec2(-nx, -ny), a.forward)
+        hold(a, legal[0], legal[1])
+    }
+
+    /** [attacker] eats [victim]'s cube at [index] and everything behind it. */
     private fun sever(victim: Chain, attacker: Chain, index: Int) {
         if (index <= 0 || index >= victim.model.length) return
         val at = victim.segments[index]
         val ex = at.x; val ey = at.y
         val removed = victim.model.removeFrom(index)
-        val drops = ArrayList<Pair<Int, Vec2>>()
+        val leftovers = ArrayList<Pair<Int, Vec2>>()
         var value = 0.0
         for (cell in removed) {
             val seg = victim.byId.remove(cell.id)
-            drops.add(cell.level to (if (seg != null) Vec2(seg.x, seg.y) else victim.headPosition))
             value += cell.value
+            val pos = if (seg != null) Vec2(seg.x, seg.y) else victim.headPosition
+            if (!tryCollect(attacker, cell.level, pos.x, pos.y)) leftovers.add(cell.level to pos)
         }
         syncSegments(victim, false)
-        spawnDrops(drops)
+        spawnDrops(leftovers)
         val pts = ScoreCalculator.toScore(value * rules.scoreDefeatValueFraction)
         if (pts > 0) {
             attacker.stats.addScore(pts)
@@ -550,25 +730,33 @@ class World(
         events.add(WorldEvent.Severed(victim, attacker, ex, ey))
     }
 
+    /** [victim] is eaten whole by [killer] (or burst into cubes when [killer] is null). */
     private fun defeat(victim: Chain, killer: Chain?) {
         if (!victim.alive) return
         val hx = victim.segments.firstOrNull()?.x ?: victim.headX
         val hy = victim.segments.firstOrNull()?.y ?: victim.headY
         val total = victim.model.totalValue
         val top = victim.model.headLevel
-        val drops = victim.segments.map { it.level to Vec2(it.x, it.y) }
+        val cubes = victim.segments.map { it.level to Vec2(it.x, it.y) }
         victim.alive = false
+        victim.lastEatenBy = killer?.name
         victim.segments.clear(); victim.absorbing.clear(); victim.byId.clear()
         victim.speed = 0f; victim.wantsBoost = false
-        spawnDrops(drops)
         if (killer != null && killer.alive) {
+            val leftovers = cubes.filter { (level, pos) -> !tryCollect(killer, level, pos.x, pos.y) }
+            spawnDrops(leftovers)
             val pts = ScoreCalculator.forDefeat(total, rules)
             killer.stats.addScore(pts)
             killer.stats.recordDefeat()
             events.add(WorldEvent.ScoreGained(killer, pts, hx, hy))
-        }
+        } else spawnDrops(cubes)
         events.add(WorldEvent.Defeated(victim, killer, hx, hy, top))
-        if (victim.isPlayer) playerDefeated = true else respawn[victim] = mode.rivalRespawnDelay
+        when {
+            victim.isHuman && options.respawnHumans -> respawn[victim] = options.humanRespawnDelay
+            victim === player -> playerDefeated = true
+            victim.isHuman -> respawn[victim] = options.humanRespawnDelay
+            else -> respawn[victim] = mode.rivalRespawnDelay
+        }
     }
 
     // ------------------------------------------------------------------ collectibles
@@ -581,17 +769,21 @@ class World(
     private fun sampleLevel(): Int {
         var level = table.sample(rng)
         val s = config.spawn
-        if (player.alive && rng.nextFloat() < s.progressionMix)
-            level += (max(0, player.headLevel - s.progressionStartLevel) * s.progressionShiftPerLevel).toInt()
+        // Progression shift follows the biggest person in the arena.
+        var top = 0
+        for (c in chains) if (c.alive && c.isHuman) top = max(top, c.headLevel)
+        if (rng.nextFloat() < s.progressionMix)
+            level += (max(0, top - s.progressionStartLevel) * s.progressionShiftPerLevel).toInt()
         return MathUtil.clamp(level, 0, NumberValue.MAX_LEVEL)
     }
 
     /** Tries to place one random collectible; returns false if no valid spot was found this time. */
     fun trySpawnRandom(preferNearPlayer: Boolean): Boolean {
         val level = sampleLevel()
+        val people = chains.filter { it.alive && it.isHuman }
         repeat(config.spawn.maxPlacementAttempts) {
-            val p = if (preferNearPlayer && player.alive && rng.nextFloat() < 0.5f)
-                player.headPosition + Vec2.fromAngle(rng.nextFloat() * MathUtil.TWO_PI) * rng.range(18f, 50f)
+            val p = if (preferNearPlayer && people.isNotEmpty() && rng.nextFloat() < 0.5f)
+                people[rng.range(0, people.size)].headPosition + Vec2.fromAngle(rng.nextFloat() * MathUtil.TWO_PI) * rng.range(18f, 50f)
             else rng.insideDisc(arenaRadius - 3f)
             if (isValidSpot(p.x, p.y)) { spawnCollectible(level, p.x, p.y, false); return true }
         }
@@ -616,11 +808,19 @@ class World(
         return true
     }
 
-    fun spawnCollectible(level: Int, x: Float, y: Float, isDrop: Boolean): Collectible {
-        val c = Collectible(nextCollectibleId++, level, x, y, move.cubeSize(level) * 0.92f, isDrop, time)
+    fun spawnCollectible(level: Int, x: Float, y: Float, isDrop: Boolean, id: Int = nextCollectibleId++): Collectible {
+        val c = Collectible(id, level, x, y, move.cubeSize(level) * 0.92f, isDrop, time)
         collectibles.add(c)
+        collectibleById[id] = c
         hash.insert(c, x, y)
+        if (options.trackNetChanges) netSpawned.add(c)
         return c
+    }
+
+    private fun moveCollectible(c: Collectible, x: Float, y: Float) {
+        c.x = x; c.y = y; c.renderX = x; c.renderY = y
+        hash.move(c, x, y)
+        if (options.trackNetChanges) netMoved.add(c)
     }
 
     private fun spawnDrops(drops: List<Pair<Int, Vec2>>) {
@@ -638,9 +838,12 @@ class World(
         }
     }
 
-    private fun beginCollect(col: Collectible, by: Chain) {
+    private fun beginCollect(col: Collectible, by: Chain?) {
         hash.remove(col)
         collectibles.remove(col)
+        collectibleById.remove(col.id)
+        if (options.trackNetChanges) netRemoved.add((col.id.toLong() shl 32) or ((by?.id ?: 0).toLong() and 0xffffffffL))
+        if (by == null) return
         col.state = Collectible.State.COLLECTING
         col.animTime = 0f
         col.collector = by
@@ -681,7 +884,7 @@ class World(
             val old = collectibles.filter { it.isDrop && time - it.spawnTime > config.spawn.dropLifetime }
             for (c in old) {
                 if (collectibles.size <= config.spawn.maxCollectibles) break
-                hash.remove(c); collectibles.remove(c)
+                beginCollect(c, null)
             }
         }
     }
@@ -693,9 +896,19 @@ class World(
     private fun updateRespawns(dt: Float) {
         if (respawn.isEmpty()) return
         val ready = ArrayList<Chain>()
-        for ((c, t) in respawn) if (t - dt <= 0f) ready.add(c) else respawn[c] = t - dt
-        for (c in ready) { respawn.remove(c); spawnRival(c, false) }
+        for ((c, t) in respawn) if (t - dt <= 0f) ready.add(c) else { respawn[c] = t - dt; c.respawnCountdown = t - dt }
+        for (c in ready) {
+            respawn.remove(c)
+            c.respawnCountdown = 0f
+            if (c.isHuman) {
+                spawnChain(c, findRivalSpot(false), rng.nextFloat() * MathUtil.TWO_PI, listOf(rules.startLevel), keepStats = true)
+                events.add(WorldEvent.Respawned(c))
+            } else spawnRival(c, false)
+        }
     }
+
+    /** Seconds until [c] respawns, or null. */
+    fun respawnIn(c: Chain): Float? = respawn[c]
 
     private fun updateRamp(dt: Float) {
         if (mode.difficultyRampMinutes <= 0f) return
@@ -704,6 +917,77 @@ class World(
         rampTimer = 5f
         val ramp = mode.rampAt(time)
         for (c in chains) (c.brain as? AIBrain)?.config = baseAI.ramped(ramp)
+    }
+
+    // ------------------------------------------------------------------ network replica (clients)
+
+    /** Creates or returns the replica of the host's chain [id]. */
+    fun replicaChain(id: Int, name: String, isHuman: Boolean, skin: String, trail: String, color: Int): Chain {
+        findChain(id)?.let { return it }
+        val c = Chain(id, name, false, skin, trail, color, ids, rules.startLevel, config.boost.copy())
+        c.isHuman = isHuman
+        chains.add(c)
+        return c
+    }
+
+    fun replicaSetLocalPlayer(c: Chain) { player = c }
+
+    fun replicaRemoveChain(id: Int) { findChain(id)?.let { if (it !== player) chains.remove(it) } }
+
+    /** Applies host state for one chain. [x], [y], [heading] are the (interpolated) head pose. */
+    fun replicaApplyChain(c: Chain, alive: Boolean, protectedFlag: Boolean, boosting: Boolean, energy: Float,
+                          levels: IntArray, score: Long, highest: Int, maxLen: Int, defeats: Int) {
+        val wasAlive = c.alive
+        c.alive = alive
+        c.protection = if (protectedFlag) 1f else 0f
+        c.boost.syncFromNetwork(energy, boosting)
+        c.stats.syncFromNetwork(score, highest, maxLen, defeats)
+        if (!alive) { c.segments.clear(); c.absorbing.clear(); c.byId.clear(); return }
+        if (!wasAlive || c.segments.isEmpty()) {
+            c.model.setLevels(levels.toList())
+            c.byId.clear(); c.segments.clear()
+            syncSegments(c, true)
+        } else if (!c.model.levelsEqual(levels)) {
+            val grew = c.model.replaceLevelsInPlace(levels)
+            syncSegments(c, false)
+            for (i in grew) c.segments.getOrNull(i)?.punch = 1f
+        }
+    }
+
+    /** Moves a replica chain's head (from interpolation); a big jump re-seeds the trail. */
+    fun replicaMoveHead(c: Chain, x: Float, y: Float, heading: Float, speed: Float, reset: Boolean) {
+        c.heading = heading
+        c.speed = speed
+        if (reset) {
+            c.trail.reset(Vec2(x, y), Vec2.fromAngle(heading), 30f)
+            syncSegments(c, true)
+        } else c.trail.moveHead(x, y)
+    }
+
+    fun replicaSpawnCollectible(id: Int, level: Int, x: Float, y: Float, isDrop: Boolean) {
+        if (collectibleById.containsKey(id)) return
+        spawnCollectible(level, x, y, isDrop, id)
+    }
+
+    fun replicaRemoveCollectible(id: Int, collectorId: Int) {
+        val c = collectibleById[id] ?: return
+        beginCollect(c, if (collectorId != 0) findChain(collectorId) else null)
+    }
+
+    fun replicaMoveCollectible(id: Int, x: Float, y: Float) { collectibleById[id]?.let { moveCollectible(it, x, y) } }
+
+    fun replicaClearCollectibles() {
+        for (c in collectibles.toList()) { hash.remove(c); collectibleById.remove(c.id) }
+        collectibles.clear(); collecting.clear()
+    }
+
+    /** One replica frame: publish [incoming] events and animate. */
+    fun replicaFrame(dt: Float, incoming: List<WorldEvent>) {
+        events.clear()
+        events.addAll(incoming)
+        time += dt
+        for (c in chains) if (c.alive) updateVisuals(c, dt)
+        updateCollectibles(dt)
     }
 
     /** Rival AI brain: builds an [AIContext] every reaction tick and steers at the chosen target in between. */
@@ -720,10 +1004,13 @@ class World(
             chain.speedMultiplier = config.speedMultiplier
             timer -= dt
             val targetGone = decision.state == AIState.COLLECT && Vec2.distanceSquared(decision.targetPosition, chain.headPosition) < 0.8f
-            if (timer <= 0f || targetGone) {
+            if (timer <= 0f || targetGone || chain.resistance > 0.9f) {
                 timer = config.reactionTime + rng.range(-config.reactionJitter, config.reactionJitter)
                 buildContext(world, chain)
                 decision = AITargetSelector.decide(ctx, config, memory, rng)
+                // Stuck against something solid: turn away for a moment.
+                if (chain.resistance > 0.9f) decision = decision.copy(state = AIState.WANDER,
+                    direction = Vec2.fromAngle(chain.heading + MathUtil.PI * (0.5f + rng.nextFloat())))
             }
             var dir = decision.direction
             if (decision.state == AIState.COLLECT || decision.state == AIState.CHASE) {
@@ -749,7 +1036,10 @@ class World(
             world.queryCollectibles(chain.headX, chain.headY, config.sightRadius, nearby)
             for (i in 0 until min(nearby.size, 48)) {
                 val c = nearby[i]
-                ctx.collectibles.add(AICollectibleInfo(c.id, Vec2(c.x, c.y), c.level, world.canCollect(chain, c.level)))
+                val can = world.canCollect(chain, c.level)
+                ctx.collectibles.add(AICollectibleInfo(c.id, Vec2(c.x, c.y), c.level, can))
+                // Bigger cubes are solid: steer around the ones close by.
+                if (!can && Vec2.distance(Vec2(c.x, c.y), chain.headPosition) < 6f) ctx.obstacles.add(AIObstacleInfo(Vec2(c.x, c.y), c.radius + 0.4f))
             }
             val me = chain.snapshot()
             val interest = max(config.fleeRadius, config.chaseRadius) * 1.4f
@@ -773,6 +1063,7 @@ class World(
     }
 
     companion object {
+        const val MAX_SUBSTEP = 1f / 60f
         val RIVAL_NAMES = listOf(
             "Blocky", "Cubert", "Quadra", "Hexa", "Pixel", "Tetro", "Voxel", "Brick", "Prism", "Nova", "Bolt", "Zappy",
             "Mochi", "Dicey", "Kubo", "Nimbus", "Sprout", "Rumble", "Echo", "Glint", "Orbit", "Pebble", "Turbo", "Wobble",

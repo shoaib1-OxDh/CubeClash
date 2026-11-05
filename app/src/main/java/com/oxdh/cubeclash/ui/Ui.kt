@@ -154,6 +154,15 @@ object Ui {
     }
 
     fun close(v: View) { (v.parent as? ViewGroup)?.removeView(v) }
+
+    fun editText(c: Context, value: String, hint: String, caps: Boolean = false) = android.widget.EditText(c).apply {
+        setText(value); this.hint = hint; textSize = 17f; setTextColor(Color.WHITE); setHintTextColor(TEXT_DIM)
+        isSingleLine = true
+        background = rounded(PANEL_LIGHT, dp(c, 12f))
+        val p = dpi(c, 12f); setPadding(p, p, p, p)
+        if (caps) inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+        imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+    }
 }
 
 /** Global click sound hook (set by the activity). */

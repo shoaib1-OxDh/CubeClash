@@ -20,6 +20,10 @@ class HudState {
     var nearEdge = false
     var skin = "classic"
     var alive = true
+    /** Multiplayer: who ate the local player, and seconds until respawn. */
+    var eatenBy: String? = null
+    var respawnIn = 0f
+    var peopleCount = 1
 
     /** Player head on screen (px), for tap-to-steer. */
     @Volatile var headScreenX = 0f
@@ -32,6 +36,7 @@ class HudState {
     val lbScores = LongArray(6)
     val lbRanks = IntArray(6)
     val lbIsPlayer = BooleanArray(6)
+    val lbIsHuman = BooleanArray(6)
     var lbCount = 0
 
     // Rival name tags.
