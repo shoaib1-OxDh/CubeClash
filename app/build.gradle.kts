@@ -27,6 +27,14 @@ android {
     }
 
     signingConfigs {
+        // Fixed, non-secret key shared by every build so new APKs install over older ones when sideloading.
+        // (A fresh runner would otherwise generate a different debug key each time.) Not for Google Play.
+        getByName("debug") {
+            storeFile = file("cubeclash-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystoreProps.isNotEmpty()) {
             create("release") {
                 storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))

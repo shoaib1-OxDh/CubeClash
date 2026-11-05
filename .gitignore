@@ -13,6 +13,7 @@ captures/
 keystore.properties
 *.jks
 *.keystore
+!app/cubeclash-debug.keystore
 
 # Outputs
 *.apk

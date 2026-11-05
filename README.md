@@ -16,7 +16,11 @@ It contains:
   install this one on your phone.
 * `CubeClash-1.0.N-debug.apk` — debug build.
 
-On the phone: open the APK and allow installing from that source. New builds install over old ones.
+On the phone: open the APK and allow installing from that source. Every build is signed with the same sideload key
+(`app/cubeclash-debug.keystore`, intentionally public), so new builds install over old ones.
+
+**Releases:** *Actions → Release APK → Run workflow* (or push a `v*` tag) publishes a GitHub Release with the APK and
+an AAB. For Google Play, add your own keystore as secrets (see below) — the public sideload key must not be used there.
 
 ## Gameplay
 

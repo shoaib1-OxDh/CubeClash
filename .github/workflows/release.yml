@@ -1,0 +1,86 @@
+name: Release APK
+
+# Publishes a GitHub Release with the optimised release APK (and an AAB for Google Play).
+# Run it from Actions → Release APK → Run workflow, or push a tag like v1.0.9.
+# Signing: uses the KEYSTORE_* secrets when present (Google Play); otherwise the repo's fixed sideload key,
+# so every release installs over the previous one.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      APP_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare Gradle wrapper
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Optional Play signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > cubeclash-release.jks
+            printf 'storeFile=cubeclash-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+            echo "SIGNING=release keystore" >> "$GITHUB_ENV"
+          else
+            echo "SIGNING=sideload key (not for Google Play)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Test and build release APK + AAB
+        run: ./gradlew :engine:test :app:assembleRelease :app:bundleRelease --stacktrace
+
+      - name: Name the files
+        id: files
+        run: |
+          version="1.0.${APP_BUILD_NUMBER}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF#refs/tags/v}"; fi
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/CubeClash-${version}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "out/CubeClash-${version}.aab"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ls -la out
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f cubeclash-release.jks keystore.properties
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.files.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Cube Clash ${{ steps.files.outputs.version }}
+          make_latest: true
+          files: out/*
+          body: |
+            **Install on Android:** download `CubeClash-${{ steps.files.outputs.version }}.apk` below on your phone, open it and allow installing from this source. Later releases install over this one.
+
+            The `.aab` is for Google Play. Signed with: ${{ env.SIGNING }}.
+
+            Includes: free touch steering (drag anywhere, second finger to boost), closer third-person camera, number-based eating with front/rear bites, solid bigger cubes, and local (Wi-Fi/hotspot) + online (room code) multiplayer.
