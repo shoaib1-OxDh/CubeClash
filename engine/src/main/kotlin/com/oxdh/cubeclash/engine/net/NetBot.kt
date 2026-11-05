@@ -65,7 +65,7 @@ private fun onlineHost(seconds: Float, codeFile: File): Boolean {
     val code = transport.open()
     codeFile.writeText(code)
     println("[netbot] online room $code via ${Online.relayFor(code)}")
-    val host = HostSession(world, transport, code, "CI Host", stateRate = 15f)
+    val host = HostSession(world, transport, code, "CI Host", stateRate = Online.STATE_RATE, fullResyncSeconds = 5f)
     host.start()
     var maxPeers = 0; var inputs = 0
     repeat((seconds * 60).toInt()) { i ->
@@ -75,8 +75,10 @@ private fun onlineHost(seconds: Float, codeFile: File): Boolean {
         if (i % 300 == 0) println("[netbot] t=${i / 60}s peers=${host.peers.map { "${it.chain.name}:${if (it.connected) "on" else "off"}:${it.chain.model}" }} inputs=$inputs")
         Thread.sleep(16)
     }
-    val ok = maxPeers >= 1 && inputs > 50
-    println("[netbot] RESULT ${if (ok) "OK" else "FAIL"} maxPeers=$maxPeers inputs=$inputs")
+    val best = host.peers.maxOfOrNull { it.chain.stats.highestLevel } ?: 0
+    val collected = host.peers.sumOf { it.chain.stats.cubesCollected }
+    val ok = maxPeers >= 1 && inputs > 30 && collected > 0
+    println("[netbot] RESULT ${if (ok) "OK" else "FAIL"} maxPeers=$maxPeers inputs=$inputs collectedByPlayers=$collected bestLevel=$best")
     host.close()
     return ok
 }

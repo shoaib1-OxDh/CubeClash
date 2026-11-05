@@ -95,7 +95,9 @@ class GameSession private constructor(
             val mode = GameMode.CLASSIC
             val world = World(GameConfig(), GameModeSettings.forMode(mode), AIDifficulty.NORMAL, System.nanoTime(), skin, trail,
                 WorldOptions(botCount = bots, respawnHumans = true, trackNetChanges = true, playerName = hostName))
-            val host = HostSession(world, transport, roomCode, hostName)
+            val online = transport is com.oxdh.cubeclash.engine.net.Online.HostTransportImpl
+            val host = HostSession(world, transport, roomCode, hostName, stateRate = if (online) com.oxdh.cubeclash.engine.net.Online.STATE_RATE else 20f,
+                fullResyncSeconds = if (online) 5f else 10f)
             host.start()
             return GameSession(Kind.HOST, mode, AIDifficulty.NORMAL, null, host, null, autoplay, label, invite)
         }

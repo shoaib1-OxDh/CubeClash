@@ -24,6 +24,8 @@ class HostSession(
     private val timeoutSeconds: Float = 5f,
     private val keepSeconds: Float = 60f,
     private val maxPlayers: Int = 8,
+    /** Seconds between full collectible resyncs (heals any state skipped by a congested link). */
+    private val fullResyncSeconds: Float = 10f,
 ) {
     class Peer(val clientId: String, var key: String, val chain: Chain) {
         var lastSeen = 0.0
@@ -73,7 +75,7 @@ class HostSession(
 
         stateTimer += dt; fullTimer += dt; rosterTimer += dt
         if (rosterDirty || rosterTimer > 2f) { transport.broadcast(Protocol.encodeRoster(roster())); rosterDirty = false; rosterTimer = 0f }
-        if (fullTimer > 10f) { fullTimer = 0f; transport.broadcast(Protocol.encodeFull(fullCollectibles())) }
+        if (fullTimer > fullResyncSeconds) { fullTimer = 0f; transport.broadcast(Protocol.encodeFull(fullCollectibles())) }
         if (stateTimer >= 1f / stateRate) {
             stateTimer = 0f
             transport.broadcast(Protocol.encode(buildState()))

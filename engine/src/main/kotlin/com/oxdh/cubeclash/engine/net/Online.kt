@@ -29,7 +29,9 @@ class MqttConnection(
     var onClosed: ((String) -> Unit)? = null
     private lateinit var socket: Socket
     private lateinit var out: OutputStream
-    private val queue = LinkedBlockingDeque<ByteArray>()
+    /** Outgoing packets; [replaceKey] marks "latest wins" packets (inputs, states) that supersede older ones. */
+    private class Out(val bytes: ByteArray, val replaceKey: String?)
+    private val queue = LinkedBlockingDeque<Out>()
     @Volatile private var open = false
     private var packetId = 1
 
@@ -59,7 +61,7 @@ class MqttConnection(
         open = true
         Thread({ readLoop(input) }, "mqtt-read").apply { isDaemon = true }.start()
         Thread({ writeLoop() }, "mqtt-write").apply { isDaemon = true }.start()
-        Thread({ while (open) { try { Thread.sleep(keepAliveSeconds * 500L) } catch (_: InterruptedException) {}; if (open) queue.offerLast(byteArrayOf(0xC0.toByte(), 0)) } }, "mqtt-ping").apply { isDaemon = true }.start()
+        Thread({ while (open) { try { Thread.sleep(keepAliveSeconds * 500L) } catch (_: InterruptedException) {}; if (open) queue.offerLast(Out(byteArrayOf(0xC0.toByte(), 0), null)) } }, "mqtt-ping").apply { isDaemon = true }.start()
     }
 
     fun subscribe(vararg topics: String) {
@@ -67,15 +69,21 @@ class MqttConnection(
         val id = packetId++
         body.write(id shr 8); body.write(id and 0xff)
         for (t in topics) { writeStr(body, t); body.write(0) }
-        queue.offerLast(packet(0x82, body.toByteArray()))
+        queue.offerLast(Out(packet(0x82, body.toByteArray()), null))
     }
 
-    fun publish(topic: String, payload: ByteArray, retain: Boolean = false) {
+    /**
+     * Publishes with QoS 0. With [replaceKey], a still-unsent packet with the same key is replaced instead of
+     * queued behind: when a relay throttles us, only the newest input / state goes out and lag cannot build up.
+     */
+    fun publish(topic: String, payload: ByteArray, retain: Boolean = false, replaceKey: String? = null) {
         if (!open) return
         val body = ByteArrayOutputStream(payload.size + topic.length + 4)
         writeStr(body, topic); body.write(payload)
-        while (queue.size > 150) queue.pollFirst() // drop the oldest under congestion; state is resent anyway
-        queue.offerLast(packet(if (retain) 0x31 else 0x30, body.toByteArray()))
+        val out = Out(packet(if (retain) 0x31 else 0x30, body.toByteArray()), replaceKey)
+        if (replaceKey != null) queue.removeIf { it.replaceKey == replaceKey }
+        while (queue.size > 150) queue.pollFirst()
+        queue.offerLast(out)
     }
 
     fun close() {
@@ -98,7 +106,7 @@ class MqttConnection(
         try {
             while (open) {
                 val p = queue.pollFirst(500, TimeUnit.MILLISECONDS) ?: continue
-                out.write(p)
+                out.write(p.bytes)
                 if (queue.isEmpty()) out.flush()
             }
         } catch (e: Exception) { shutdown(e.message ?: "Write failed") }
@@ -151,11 +159,15 @@ class MqttConnection(
 object Online {
     data class Relay(val host: String, val port: Int, val tls: Boolean = true)
 
+    /** Public relays, best first (measured by the CI relay test). Port 8886 on mosquitto has a Let's Encrypt certificate. */
     val RELAYS = listOf(
-        Relay("broker.hivemq.com", 8883),
         Relay("broker.emqx.io", 8883),
-        Relay("test.mosquitto.org", 8883),
+        Relay("broker.hivemq.com", 8883),
+        Relay("test.mosquitto.org", 8886),
     )
+
+    /** States per second for online rooms (relays rate-limit publishers; 12/s + interpolation stays smooth). */
+    const val STATE_RATE = 12f
 
     private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     private val random = SecureRandom()
@@ -245,7 +257,9 @@ object Online {
         private fun announce() { conn?.publish(base(code) + "/info", Protocol.roomInfo(hostName, players()), retain = true) }
 
         override fun send(peer: String, bytes: ByteArray) { conn?.publish(base(code) + "/c/" + peer, bytes) }
-        override fun broadcast(bytes: ByteArray) { conn?.publish(base(code) + "/h", bytes) }
+        override fun broadcast(bytes: ByteArray) {
+            conn?.publish(base(code) + "/h", bytes, replaceKey = if (Protocol.type(bytes) == Protocol.STATE) "state" else null)
+        }
         override fun drop(peer: String) { lastSeen.remove(peer) }
 
         override fun stop() {
@@ -275,7 +289,9 @@ object Online {
             conn = m
         }
 
-        override fun send(bytes: ByteArray) { conn?.publish(base(code) + "/s/" + clientId, bytes) }
+        override fun send(bytes: ByteArray) {
+            conn?.publish(base(code) + "/s/" + clientId, bytes, replaceKey = if (Protocol.type(bytes) == Protocol.INPUT) "input" else null)
+        }
         override fun close() { conn?.close(); conn = null }
     }
 }

@@ -188,16 +188,18 @@ class OnlineLiveTest {
             options = WorldOptions(botCount = 2, respawnHumans = true, trackNetChanges = true))
         val transport = Online.HostTransportImpl("CI host") { 1 }
         val code = try { transport.openOn(relayIndex) } catch (e: Exception) { return "unreachable (${e.message})" }
-        val host = HostSession(world, transport, code, "CI host", stateRate = 15f)
+        val host = HostSession(world, transport, code, "CI host", stateRate = Online.STATE_RATE, fullResyncSeconds = 5f)
         host.start()
         val cid = Online.randomId("cid-")
         val client = ClientSession({ Online.ClientTransportImpl(code, cid) }, cid, "Remote", "classic", "spark")
         client.start()
-        client.input.direction = Vec2(0f, -1f)
         var firstState = -1L
+        var turn = 0f
         val start = System.currentTimeMillis()
         val end = start + (seconds * 1000).toLong()
         while (System.currentTimeMillis() < end) {
+            turn += 0.02f
+            client.input.direction = Vec2.fromAngle(turn) // a player steering continuously
             host.tick(1f / 60f); client.tick(1f / 60f)
             if (firstState < 0 && client.statesReceived > 0) firstState = System.currentTimeMillis()
             Thread.sleep(16)
@@ -205,8 +207,9 @@ class OnlineLiveTest {
         val playing = if (firstState > 0) (System.currentTimeMillis() - firstState) / 1000f else 0f
         val rate = if (playing > 0) client.statesReceived / playing else 0f
         val inputs = host.peers.firstOrNull()?.inputs ?: 0
+        val status = client.status
         client.leave(); host.close()
-        return "status=${client.status} join=${if (firstState > 0) (firstState - start) else -1}ms states/s=${"%.1f".format(rate)} rtt=${client.lastRttMs}ms inputs=$inputs"
+        return "status=$status join=${if (firstState > 0) (firstState - start) else -1}ms states/s=${"%.1f".format(rate)} rtt=${client.lastRttMs}ms inputs=$inputs"
     }
 
     @Test fun relaysCarryARealSession() {

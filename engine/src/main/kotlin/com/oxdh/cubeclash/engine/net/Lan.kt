@@ -43,7 +43,9 @@ object Lan {
 
         fun send(bytes: ByteArray) {
             if (!open) return
-            // Back-pressure: on a congested link drop the oldest queued frames (state is resent anyway).
+            // Latest wins for states and inputs: on a slow link an unsent older one is replaced, so lag can't build up.
+            val t = Protocol.type(bytes)
+            if (t == Protocol.STATE || t == Protocol.INPUT) queue.removeIf { Protocol.type(it) == t }
             while (queue.size > 120) queue.pollFirst()
             queue.offerLast(bytes)
         }

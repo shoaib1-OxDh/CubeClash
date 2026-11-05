@@ -49,6 +49,9 @@ class ClientSession(
     private var sendTimer = 0f
     private var pingTimer = 0f
     private var seq = 0
+    private var lastSentSteering = false
+    private var lastSentBoost = false
+    private var lastSentAngle = 0f
     private var clock = 0f
     private var reconnectTimer = 0f
     private var reconnectAttempts = 0
@@ -120,12 +123,17 @@ class ClientSession(
         val t = transport
         if (t != null && status != Status.CLOSED) {
             sendTimer += dt; pingTimer += dt
-            if (sendTimer >= 0.05f) {
+            // Send input when it changes (at most ~12/s) plus a slow heartbeat: relays rate-limit publishers.
+            val d = input.direction
+            val angle = d?.angle ?: 0f
+            val changed = (d != null) != lastSentSteering || input.boost != lastSentBoost ||
+                (d != null && kotlin.math.abs(MathUtil.wrapAngle(angle - lastSentAngle)) > 0.06f)
+            if ((changed && sendTimer >= 0.08f) || sendTimer >= 0.4f) {
                 sendTimer = 0f
-                val d = input.direction
-                try { t.send(Protocol.encode(Protocol.Input(++seq, d != null, d?.angle ?: 0f, input.boost))) } catch (_: Exception) {}
+                lastSentSteering = d != null; lastSentBoost = input.boost; lastSentAngle = angle
+                try { t.send(Protocol.encode(Protocol.Input(++seq, d != null, angle, input.boost))) } catch (_: Exception) {}
             }
-            if (pingTimer >= 1f) { pingTimer = 0f; try { t.send(Protocol.ping(System.nanoTime())) } catch (_: Exception) {} }
+            if (pingTimer >= 2f) { pingTimer = 0f; try { t.send(Protocol.ping(System.nanoTime())) } catch (_: Exception) {} }
         }
 
         val w = world ?: return
