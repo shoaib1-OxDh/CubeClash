@@ -50,7 +50,8 @@ private fun join(factory: ClientTransportFactory, seconds: Float): Boolean {
         if (i % 300 == 0) println("[netbot] t=${i / 60}s status=${client.status} states=${client.statesReceived} rtt=${client.lastRttMs}ms players=${client.roster.values.count { it.isHuman }} chain=${me?.model} score=${me?.stats?.score}")
         Thread.sleep(16)
     }
-    val ok = client.welcome != null && client.statesReceived > seconds * 8 && moved > 10f
+    // A software-rendered emulator host sends at most one state per rendered frame, so require a modest rate.
+    val ok = client.welcome != null && client.statesReceived > seconds * 2 && moved > 10f
     println("[netbot] RESULT ${if (ok) "OK" else "FAIL"} status=${client.status} (${client.statusMessage}) states=${client.statesReceived} moved=${"%.1f".format(moved)} roster=${client.roster.values.map { it.name }}")
     client.leave()
     return ok
