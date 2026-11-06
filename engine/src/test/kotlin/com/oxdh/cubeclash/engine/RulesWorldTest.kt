@@ -44,8 +44,8 @@ class RulesWorldTest {
         assertTrue("head never enters the cube (gap $minGap)", minGap > -0.05f)
         assertTrue("strong resistance while pushing ($minSpeed vs $cruise)", minSpeed < cruise * 0.45f)
         assertTrue(w.events.isEmpty() || w.events.none { it is WorldEvent.Collected })
-        // Turn away: speed comes back smoothly.
-        input.direction = Vec2.fromAngle(PI.toFloat())
+        // Turn away (directly away from the cube, wherever the head slid to): speed comes back smoothly.
+        input.direction = (p.headPosition - Vec2(cube.x, cube.y)).normalized
         run(w, 1.5f)
         assertTrue("speed recovers (${p.speed})", p.speed > cruise * 0.9f)
     }

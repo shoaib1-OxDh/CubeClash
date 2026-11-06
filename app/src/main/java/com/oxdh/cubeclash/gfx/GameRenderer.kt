@@ -15,6 +15,7 @@ import com.oxdh.cubeclash.engine.Chain
 import com.oxdh.cubeclash.engine.Collectible
 import com.oxdh.cubeclash.engine.CombatResolver
 import com.oxdh.cubeclash.engine.NumberFormat
+import com.oxdh.cubeclash.engine.ObstacleShape
 import com.oxdh.cubeclash.engine.RankCalculator
 import com.oxdh.cubeclash.engine.Rng
 import com.oxdh.cubeclash.engine.Vec2
@@ -63,6 +64,22 @@ class GameRenderer(
     private val spriteInst: FloatBuffer = GlUtil.floatBuffer(MAX_SPRITES * SPRITE_FLOATS)
     private var cubeCount = 0
     private var spriteCount = 0
+
+    /** Extra instanced meshes (round obstacles, arena wall, scenery) drawn with the cube shader. */
+    private class MeshDraw(val vao: Int, val instVbo: Int, val indexCount: Int, val maxInst: Int) {
+        val buf: FloatBuffer = GlUtil.floatBuffer(maxInst * CUBE_FLOATS)
+        var count = 0
+        fun begin() { buf.clear(); count = 0 }
+        fun add(x: Float, y: Float, z: Float, size: Float, dirX: Float, dirY: Float, heightMul: Float, color: Int, emission: Float) {
+            if (count >= maxInst) return
+            buf.put(x).put(y).put(z).put(size)
+            buf.put(dirX).put(dirY).put(PLAIN_CELL.toFloat()).put(heightMul)
+            buf.put(Color.red(color) / 255f).put(Color.green(color) / 255f).put(Color.blue(color) / 255f).put(emission)
+            count++
+        }
+    }
+    private val shapeDraws = HashMap<ObstacleShape, MeshDraw>()
+    private var wallDraw: MeshDraw? = null
 
     // Camera.
     private val proj = FloatArray(16); private val view = FloatArray(16); private val vp = FloatArray(16)
@@ -139,6 +156,15 @@ class GameRenderer(
         }
         GLES30.glBindVertexArray(0)
 
+        // Round obstacle shapes and the arena wall.
+        shapeDraws.clear()
+        shapeDraws[ObstacleShape.PILLAR] = meshDraw(Shapes.pillar, 256)
+        shapeDraws[ObstacleShape.HEX] = meshDraw(Shapes.hex, 256)
+        shapeDraws[ObstacleShape.DOME] = meshDraw(Shapes.dome, 256)
+        shapeDraws[ObstacleShape.CONE] = meshDraw(Shapes.cone, 256)
+        shapeDraws[ObstacleShape.ROCK] = meshDraw(Shapes.rock, 256)
+        wallDraw = meshDraw(Shapes.ringWall(world.arenaRadius + 0.2f, WALL_THICKNESS, WALL_HEIGHT), 1)
+
         // Ground quad.
         groundVao = GlUtil.genVao()
         GLES30.glBindVertexArray(groundVao)
@@ -165,8 +191,41 @@ class GameRenderer(
         GLES30.glBindVertexArray(0)
 
         atlasTex = buildAtlas(session.localSkin)
-        if (decorations.isEmpty()) buildDecorations()
+        if (decorations.isEmpty()) { hills.clear(); buildDecorations() }
         lastNanos = 0L
+    }
+
+    private fun meshDraw(mesh: Mesh, maxInst: Int): MeshDraw {
+        val vao = GlUtil.genVao()
+        GLES30.glBindVertexArray(vao)
+        val vbo = GlUtil.genBuffer()
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, mesh.vertices.size * 4, GlUtil.floatBuffer(mesh.vertices), GLES30.GL_STATIC_DRAW)
+        GLES30.glEnableVertexAttribArray(0); GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 32, 0)
+        GLES30.glEnableVertexAttribArray(1); GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, 32, 12)
+        GLES30.glEnableVertexAttribArray(2); GLES30.glVertexAttribPointer(2, 2, GLES30.GL_FLOAT, false, 32, 24)
+        val ibo = GlUtil.genBuffer()
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ibo)
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size * 2, GlUtil.shortBuffer(mesh.indices), GLES30.GL_STATIC_DRAW)
+        val inst = GlUtil.genBuffer()
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, inst)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, maxInst * CUBE_FLOATS * 4, null, GLES30.GL_DYNAMIC_DRAW)
+        for (i in 0..2) {
+            GLES30.glEnableVertexAttribArray(3 + i)
+            GLES30.glVertexAttribPointer(3 + i, 4, GLES30.GL_FLOAT, false, CUBE_FLOATS * 4, i * 16)
+            GLES30.glVertexAttribDivisor(3 + i, 1)
+        }
+        GLES30.glBindVertexArray(0)
+        return MeshDraw(vao, inst, mesh.indices.size, maxInst)
+    }
+
+    private fun drawMesh(m: MeshDraw) {
+        if (m.count == 0) return
+        GLES30.glBindVertexArray(m.vao)
+        m.buf.position(0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, m.instVbo)
+        GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER, 0, m.count * CUBE_FLOATS * 4, m.buf)
+        GLES30.glDrawElementsInstanced(GLES30.GL_TRIANGLES, m.indexCount, GLES30.GL_UNSIGNED_SHORT, 0, m.count)
     }
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
@@ -203,13 +262,25 @@ class GameRenderer(
         FacePainter.draw(canvas, x, y, CELL.toFloat(), Palette.color(skin, level), NumberFormat.formatLevel(level))
     }
 
+    private class Hill(val x: Float, val z: Float, val w: Float, val h: Float, val shape: ObstacleShape, val color: Int)
+    private val hills = ArrayList<Hill>()
+
     private fun buildDecorations() {
         val r = Rng(4242)
+        val hillColors = intArrayOf(Color.rgb(150, 175, 235), Color.rgb(170, 160, 230), Color.rgb(140, 200, 220), Color.rgb(185, 195, 240))
+        repeat(46) { i ->
+            val a = i / 46f * PI.toFloat() * 2f + r.range(-0.05f, 0.05f)
+            val d = world.arenaRadius + r.range(14f, 60f)
+            val w = r.range(10f, 34f)
+            val shape = if (r.nextFloat() < 0.6f) ObstacleShape.DOME else if (r.nextFloat() < 0.5f) ObstacleShape.CONE else ObstacleShape.ROCK
+            val h = when (shape) { ObstacleShape.CONE -> w * r.range(0.7f, 1.2f); ObstacleShape.ROCK -> w * r.range(0.35f, 0.6f); else -> w * r.range(0.3f, 0.55f) }
+            hills += Hill(cos(a) * d, sin(a) * d, w, h, shape, hillColors[i % hillColors.size])
+        }
         val colors = intArrayOf(Color.rgb(255, 199, 89), Color.rgb(140, 217, 255), Color.rgb(255, 140, 178), Color.rgb(166, 242, 166))
         repeat(28) { i ->
             val a = r.nextFloat() * PI.toFloat() * 2f
             val d = world.arenaRadius + r.range(30f, 110f)
-            decorations += Deco(cos(a) * d, r.range(4f, 26f), sin(a) * d, r.range(5f, 16f), colors[i % colors.size], r.range(-12f, 12f), r.nextFloat() * 6f)
+            decorations += Deco(cos(a) * d, r.range(14f, 40f), sin(a) * d, r.range(5f, 16f), colors[i % colors.size], r.range(-12f, 12f), r.nextFloat() * 6f)
         }
     }
 
@@ -370,14 +441,15 @@ class GameRenderer(
         val aspect = width.toFloat() / height
         val chainZoom = 1f + min(0.45f, p.model.length * 0.01f + p.headLevel * 0.018f)
         // Portrait sees less sideways, so pull back a bit; landscape gets a much closer third-person view.
-        val aspectZoom = if (aspect < 1f) 1.18f - 0.18f * ((aspect - 0.45f) / 0.55f).coerceIn(0f, 1f) else 0.78f
+        val aspectZoom = if (aspect < 1f) 1.18f - 0.18f * ((aspect - 0.45f) / 0.55f).coerceIn(0f, 1f) else 0.85f
         val boostZoom = if (p.boost.isBoosting) 1.06f else 1f
         val targetZoom = chainZoom * aspectZoom * boostZoom * settings.cameraZoom
         zoom += (targetZoom - zoom) * (1f - exp(-2f * dt))
         if (!camInit) zoom = targetZoom
 
         // Third-person: behind and above the head, looking slightly ahead of it.
-        val ox = sin(yaw) * 10.5f * zoom; val oz = cos(yaw) * 10.5f * zoom; val oy = 13.5f * zoom
+        // A lower, longer view than straight top-down so obstacles, walls and hills read as 3D.
+        val ox = sin(yaw) * 12.5f * zoom; val oz = cos(yaw) * 12.5f * zoom; val oy = 11.5f * zoom
         val wx = focusX + ox; val wy = max(3f, oy); val wz = focusZ + oz
         val kp = 1f - exp(-dt / (0.18f / sens) * 1.6f)
         if (!camInit) { camX = wx; camY = wy; camZ = wz; camInit = true }
@@ -460,6 +532,8 @@ class GameRenderer(
         GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER, 0, cubeCount * CUBE_FLOATS * 4, cubeInst)
         GLES30.glDrawElementsInstanced(GLES30.GL_TRIANGLES, indexCount, GLES30.GL_UNSIGNED_SHORT, 0, cubeCount)
         GLES30.glDisable(GLES30.GL_CULL_FACE)
+        for (m in shapeDraws.values) drawMesh(m)
+        wallDraw?.let { drawMesh(it) }
 
         // Additive: halos (ground) and particles (billboards).
         GLES30.glEnable(GLES30.GL_BLEND)
@@ -560,22 +634,44 @@ class GameRenderer(
         }
         for (col in world.collecting) drawCollectible(col, col.renderX, -col.renderY, t, low)
 
-        // Static world: obstacles, posts, decorations.
+        // Static world: obstacles, arena wall, scenery.
+        for (m in shapeDraws.values) m.begin()
         for (o in world.obstacles) {
             val ox = o.position.x; val oz = -o.position.y
             if (!near(ox, oz)) continue
             val w = o.radius * 2f
-            cube(ox, o.height * 0.5f, oz, w, 0f, 1f, PLAIN_CELL, o.height / w, OBSTACLE, 0f)
-            cube(ox, o.height + 0.9f + sin(t * 1.3f + ox) * 0.2f, oz, 0.9f, sin(t * 0.8f), cos(t * 0.8f), PLAIN_CELL, 1f, Color.WHITE, 0.35f)
-            sprite(ox, 0.01f, oz, o.radius * 1.6f, SHADOW, 0.38f, 0)
+            val tint = OBSTACLE_TINTS[((ox * 13f + oz * 7f).toInt() and 0x7fffffff) % OBSTACLE_TINTS.size]
+            val spin = (ox * 0.37f + oz * 0.21f)
+            val dx = sin(spin); val dz = cos(spin)
+            val h = when (o.shape) {
+                ObstacleShape.DOME -> min(o.height, o.radius * 1.25f)
+                ObstacleShape.ROCK -> o.height * 0.75f
+                ObstacleShape.CONE -> o.height * 1.35f
+                else -> o.height
+            }
+            if (o.shape == ObstacleShape.BOX) {
+                // Boxes fit inside the collision circle so their corners never overlap passing cubes.
+                val bw = w * 0.78f
+                cube(ox, h * 0.5f, oz, bw, dx, dz, PLAIN_CELL, h / bw, tint, 0f)
+            } else shapeDraws[o.shape]?.add(ox, h * 0.5f, oz, w, dx, dz, h / w, tint, 0f)
+            if (o.radius >= 3.2f && (o.shape == ObstacleShape.PILLAR || o.shape == ObstacleShape.HEX || o.shape == ObstacleShape.BOX))
+                cube(ox, h + 0.9f + sin(t * 1.3f + ox) * 0.2f, oz, 0.8f, sin(t * 0.8f), cos(t * 0.8f), PLAIN_CELL, 1f, Color.WHITE, 0.35f)
+            sprite(ox + 0.35f * o.radius, 0.01f, oz + 0.25f * o.radius, o.radius * 1.75f, SHADOW, 0.42f, 0)
         }
-        val r = world.arenaRadius + 1f
+        wallDraw?.let { wd -> wd.begin(); wd.add(0f, 0f, 0f, 1f, 0f, 1f, 1f, WALL, 0.04f) }
+        // Glowing studs on top of the wall.
+        val r = world.arenaRadius + 0.2f + WALL_THICKNESS * 0.5f
         val posts = (2 * PI * world.arenaRadius / 9f).toInt()
         for (i in 0 until posts) {
             val a = i / posts.toFloat() * PI.toFloat() * 2f
             val px = cos(a) * r; val pz = sin(a) * r
             if (!near(px, pz)) continue
-            cube(px, 0.6f, pz, 1f, -sin(a), cos(a), PLAIN_CELL, 1.2f, BOUNDARY, 0.35f)
+            cube(px, WALL_HEIGHT + 0.35f, pz, 0.8f, -sin(a), cos(a), PLAIN_CELL, 0.9f, BOUNDARY, 0.4f)
+        }
+        // Scenery outside the arena: hills and floating cubes give the world depth.
+        for (hl in hills) {
+            val m = shapeDraws[hl.shape] ?: continue
+            m.add(hl.x, hl.h * 0.5f, hl.z, hl.w, 0f, 1f, hl.h / hl.w, hl.color, 0.02f)
         }
         for (d in decorations) {
             val a = t * d.spin * PI.toFloat() / 180f
@@ -612,6 +708,9 @@ class GameRenderer(
     }
 
     // ------------------------------------------------------------------ HUD
+
+    private fun rankLevel(c: Chain) = if (c.alive) c.headLevel else 0
+    private fun rankKey(c: Chain): Long = (rankLevel(c).toLong() shl 40) + min(c.stats.score, (1L shl 40) - 1)
 
     private fun updateHud(dt: Float) {
         val p = world.player
@@ -650,20 +749,21 @@ class GameRenderer(
             leaderboardTimer -= dt
             if (leaderboardTimer <= 0f) {
                 leaderboardTimer = 0.4f
+                // Ranked by the number on the leading cube (what players see on each snake); score breaks ties.
                 sortedScratch.clear(); scoreScratch.clear()
-                for (c in world.chains) if (c.alive || c === p || c.isHuman) { sortedScratch += c; scoreScratch += c.stats.score }
+                for (c in world.chains) if (c.alive || c === p || c.isHuman) { sortedScratch += c; scoreScratch += rankKey(c) }
                 val pi = sortedScratch.indexOf(p)
                 h.rank = RankCalculator.rankOf(scoreScratch, pi)
                 h.competitors = sortedScratch.size
-                sortedScratch.sortByDescending { it.stats.score }
+                sortedScratch.sortByDescending { rankKey(it) }
                 var n = 0; var shown = false
                 for (i in 0 until min(5, sortedScratch.size)) {
                     val c = sortedScratch[i]
-                    h.lbNames[n] = c.name; h.lbScores[n] = c.stats.score; h.lbRanks[n] = i + 1; h.lbIsPlayer[n] = c === p; h.lbIsHuman[n] = c.isHuman
+                    h.lbNames[n] = c.name; h.lbScores[n] = c.stats.score; h.lbLevels[n] = rankLevel(c); h.lbRanks[n] = i + 1; h.lbIsPlayer[n] = c === p; h.lbIsHuman[n] = c.isHuman
                     if (c === p) shown = true
                     n++
                 }
-                if (!shown) { h.lbNames[n] = p.name; h.lbScores[n] = p.stats.score; h.lbRanks[n] = h.rank; h.lbIsPlayer[n] = true; h.lbIsHuman[n] = true; n++ }
+                if (!shown) { h.lbNames[n] = p.name; h.lbScores[n] = p.stats.score; h.lbLevels[n] = rankLevel(p); h.lbRanks[n] = h.rank; h.lbIsPlayer[n] = true; h.lbIsHuman[n] = true; n++ }
                 h.lbCount = n
             }
 
@@ -756,6 +856,11 @@ class GameRenderer(
         val SHADOW = Color.rgb(26, 31, 64)
         val DIM = Color.rgb(158, 158, 173)
         val OBSTACLE = Color.rgb(140, 153, 209)
+        val OBSTACLE_TINTS = intArrayOf(Color.rgb(140, 153, 209), Color.rgb(128, 170, 222), Color.rgb(160, 145, 215),
+            Color.rgb(120, 190, 200), Color.rgb(150, 165, 200), Color.rgb(175, 160, 220))
+        val WALL = Color.rgb(196, 170, 236)
+        const val WALL_THICKNESS = 2.4f
+        const val WALL_HEIGHT = 2.2f
         val BOUNDARY = Color.rgb(255, 92, 107)
     }
 }

@@ -77,8 +77,8 @@ class HudView(
         } else { insetL = m; insetT = m; insetR = m; insetB = m }
     }
 
-    private fun pauseCX() = width - insetR - 28 * d
-    private fun pauseCY() = insetT + 28 * d
+    private fun pauseCX() = width - insetR - PAUSE_R * d
+    private fun pauseCY() = insetT + PAUSE_R * d
 
     // ------------------------------------------------------------------ input
 
@@ -90,7 +90,7 @@ class HudView(
                 val id = e.getPointerId(i)
                 val x = e.getX(i); val y = e.getY(i)
                 when {
-                    hypot(x - pauseCX(), y - pauseCY()) < 34 * d -> { Sounds.click(); onPause() }
+                    hypot(x - pauseCX(), y - pauseCY()) < 30 * d -> { Sounds.click(); onPause() }
                     reconnectRect.contains(x, y) && clientStatus() == ClientSession.Status.RECONNECTING -> { Sounds.click(); onReconnect() }
                     steerPointer < 0 -> {
                         steerPointer = id
@@ -152,12 +152,29 @@ class HudView(
         input.turnSensitivity = settings.turnSensitivity
         input.boost = boostPointers.isNotEmpty() || doubleTapBoost || keyboardBoost
         if (!has && keyboardDir != null) { sx = keyboardDir!!.x; sy = keyboardDir!!.y; has = true }
+        // Light time-based smoothing of the touch direction removes finger jitter without adding noticeable lag.
+        val now = SystemClock.uptimeMillis()
+        val dt = ((now - lastInputMs) / 1000f).coerceIn(0f, 0.1f)
+        lastInputMs = now
+        if (has) {
+            if (!smoothValid) { smX = sx; smY = sy; smoothValid = true }
+            else {
+                val k = 1f - kotlin.math.exp(-INPUT_SHARPNESS * dt)
+                smX += (sx - smX) * k; smY += (sy - smY) * k
+                val len = hypot(smX, smY)
+                if (len > 1e-3f) { smX /= len; smY /= len } else { smX = sx; smY = sy }
+            }
+            sx = smX; sy = smY
+        } else smoothValid = false
         if (has) {
             val yaw = hud.cameraYaw
             val c = cos(yaw); val s = sin(yaw)
             input.direction = Vec2(sx * c - sy * s, sx * s + sy * c)
         } else input.direction = null
     }
+
+    private var smX = 0f; private var smY = 0f; private var smoothValid = false
+    private var lastInputMs = SystemClock.uptimeMillis()
 
     var keyboardDir: Vec2? = null
     var keyboardBoost = false
@@ -190,69 +207,78 @@ class HudView(
 
     private fun drawHud(c: Canvas) {
         val h = hud
-        for (i in 0 until h.labelCount) text(h.labelText[i] ?: "", h.labelX[i], h.labelY[i], 13f, h.labelColor[i], Paint.Align.CENTER)
+        for (i in 0 until h.labelCount) text(h.labelText[i] ?: "", h.labelX[i], h.labelY[i], 11f, h.labelColor[i], Paint.Align.CENTER)
         for (i in 0 until h.ftCount) text(h.ftText[i] ?: "", h.ftX[i], h.ftY[i], 20f * h.ftSize[i], h.ftColor[i], Paint.Align.CENTER, h.ftAlpha[i])
 
         val l = insetL; val t = insetT
-        panel(l, t, l + 170 * d, t + 90 * d)
-        text(NumberFormat.formatScore(h.score), l + 12 * d, t + 34 * d, 26f, Color.WHITE)
-        text("Rank #${h.rank} / ${h.competitors}", l + 12 * d, t + 58 * d, 15f, Ui.ACCENT)
-        text("Chain ${h.chainLength}  •  Best ${NumberFormat.formatLevel(h.highestLevel)}", l + 12 * d, t + 80 * d, 13f, Color.WHITE)
+        // Compact status card: leading cube + rank (by cube number) + score.
+        val pw = 132 * d
+        panel(l, t, l + pw, t + 44 * d, Color.argb(130, 20, 26, 56))
+        val icon = FacePainter.icon(h.skin, h.leadLevel, (34 * d).toInt())
+        c.drawBitmap(icon, l + 5 * d, t + 5 * d, null)
+        text("#${h.rank}", l + 46 * d, t + 21 * d, 16f, Ui.ACCENT)
+        text("/ ${h.competitors}", l + 46 * d + textWidth("#${h.rank}", 16f) + 4 * d, t + 21 * d, 11f, Color.WHITE, alpha = 0.8f)
+        text("${NumberFormat.formatScore(h.score)} pts  •  ${h.chainLength} cubes", l + 46 * d, t + 37 * d, 9.5f, Color.WHITE, alpha = 0.85f)
 
         if (h.lbCount > 0) {
-            val top = t + 98 * d
-            panel(l, top, l + 170 * d, top + (12 + h.lbCount * 19) * d, Color.argb(100, 20, 26, 56))
+            val top = t + 48 * d
+            val row = 14 * d
+            panel(l, top, l + pw, top + 6 * d + h.lbCount * row, Color.argb(95, 20, 26, 56))
             for (i in 0 until h.lbCount) {
-                val y = top + (24 + i * 19) * d
+                val y = top + 15 * d + i * row
                 val col = if (h.lbIsPlayer[i]) Ui.ACCENT else if (h.lbIsHuman[i]) Color.rgb(140, 220, 255) else Color.WHITE
-                text("${h.lbRanks[i]}. ${h.lbNames[i]}", l + 10 * d, y, 13f, col)
-                text(NumberFormat.abbreviate(h.lbScores[i]), l + 160 * d, y, 13f, col, Paint.Align.RIGHT)
+                text("${h.lbRanks[i]}. ${ellipsize(h.lbNames[i] ?: "", 82 * d, 10.5f)}", l + 7 * d, y, 10.5f, col)
+                text(NumberFormat.formatLevel(h.lbLevels[i]), l + pw - 7 * d, y, 10.5f, col, Paint.Align.RIGHT)
             }
         }
 
-        // Leading cube between the score panel and the minimap.
-        val icon = FacePainter.icon(h.skin, h.leadLevel, (60 * d).toInt())
-        val leftEdge = l + 170 * d
-        val rightEdge = width - insetR - (if (settings.showMinimap) 124 * d else 56 * d)
-        val cx = if (rightEdge - leftEdge > icon.width + 8 * d) (leftEdge + rightEdge) / 2f else width / 2f
-        c.drawBitmap(icon, cx - icon.width / 2f, t, null)
-        session.roomLabel?.let { text("$it  •  ${h.peopleCount} ${if (h.peopleCount == 1) "player" else "players"}", cx, t + 78 * d, 11f, Color.WHITE, Paint.Align.CENTER, 0.9f) }
+        session.roomLabel?.let { text("$it  •  ${h.peopleCount} ${if (h.peopleCount == 1) "player" else "players"}", width / 2f, t + 10 * d, 10f, Color.WHITE, Paint.Align.CENTER, 0.85f) }
 
-        val wy = t + 230 * d
-        if (h.danger) text("DANGER! BIGGER SNAKE NEARBY", width / 2f, wy, 18f, Ui.DANGER, Paint.Align.CENTER, 0.65f + 0.35f * sin(pulse * 1.5f))
-        if (h.nearEdge) text("Edge of the arena", width / 2f, wy + 24 * d, 15f, Ui.ACCENT, Paint.Align.CENTER)
+        val wy = t + 34 * d
+        if (h.danger) text("DANGER! BIGGER SNAKE NEARBY", width / 2f, wy, 14f, Ui.DANGER, Paint.Align.CENTER, 0.65f + 0.35f * sin(pulse * 1.5f))
+        if (h.nearEdge) text("Edge of the arena", width / 2f, wy + 18 * d, 12f, Ui.ACCENT, Paint.Align.CENTER)
         if (!h.alive && session.isMultiplayer) {
-            text(if (h.eatenBy != null) "Eaten by ${h.eatenBy}" else "You were eaten", width / 2f, height * 0.42f, 24f, Color.WHITE, Paint.Align.CENTER)
-            if (h.respawnIn > 0f) text("Respawning in ${kotlin.math.ceil(h.respawnIn).toInt()}…", width / 2f, height * 0.42f + 32 * d, 18f, Ui.ACCENT, Paint.Align.CENTER)
+            text(if (h.eatenBy != null) "Eaten by ${h.eatenBy}" else "You were eaten", width / 2f, height * 0.42f, 22f, Color.WHITE, Paint.Align.CENTER)
+            if (h.respawnIn > 0f) text("Respawning in ${kotlin.math.ceil(h.respawnIn).toInt()}…", width / 2f, height * 0.42f + 28 * d, 16f, Ui.ACCENT, Paint.Align.CENTER)
         }
 
         // Pause.
         paint.style = Paint.Style.FILL; paint.color = Color.argb(150, 20, 26, 56)
-        c.drawCircle(pauseCX(), pauseCY(), 24 * d, paint)
+        c.drawCircle(pauseCX(), pauseCY(), PAUSE_R * d, paint)
         paint.color = Color.WHITE
-        rect.set(pauseCX() - 8 * d, pauseCY() - 9 * d, pauseCX() - 3 * d, pauseCY() + 9 * d); c.drawRoundRect(rect, 2 * d, 2 * d, paint)
-        rect.set(pauseCX() + 3 * d, pauseCY() - 9 * d, pauseCX() + 8 * d, pauseCY() + 9 * d); c.drawRoundRect(rect, 2 * d, 2 * d, paint)
+        rect.set(pauseCX() - 6 * d, pauseCY() - 7 * d, pauseCX() - 2 * d, pauseCY() + 7 * d); c.drawRoundRect(rect, 1.5f * d, 1.5f * d, paint)
+        rect.set(pauseCX() + 2 * d, pauseCY() - 7 * d, pauseCX() + 6 * d, pauseCY() + 7 * d); c.drawRoundRect(rect, 1.5f * d, 1.5f * d, paint)
 
         if (settings.showMinimap) {
-            val r = 62 * d
-            val mx = width - insetR - r; val my = pauseCY() + 32 * d + r
-            paint.color = Color.argb(140, 15, 20, 51); c.drawCircle(mx, my, r, paint)
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = 2 * d; paint.color = Color.argb(80, 255, 255, 255)
+            // Minimap sits to the left of the pause button so both stay in the top-right corner.
+            val r = MAP_R * d
+            val mx = pauseCX() - PAUSE_R * d - 8 * d - r; val my = insetT + r
+            paint.color = Color.argb(130, 15, 20, 51); c.drawCircle(mx, my, r, paint)
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f * d; paint.color = Color.argb(80, 255, 255, 255)
             c.drawCircle(mx, my, r, paint)
             paint.style = Paint.Style.FILL
-            val inner = r - 6 * d
-            for (i in 0 until h.dotCount) { paint.color = h.dotColor[i]; c.drawCircle(mx + h.dotX[i] * inner, my - h.dotY[i] * inner, 2.6f * d * h.dotSize[i], paint) }
-            if (h.edgeVisible) { paint.color = Color.argb(230, 255, 102, 115); c.drawCircle(mx + h.edgeX * inner, my - h.edgeY * inner, 3.5f * d, paint) }
-            paint.color = Color.WHITE; c.drawCircle(mx, my, 4 * d, paint)
+            val inner = r - 4 * d
+            for (i in 0 until h.dotCount) { paint.color = h.dotColor[i]; c.drawCircle(mx + h.dotX[i] * inner, my - h.dotY[i] * inner, 2f * d * h.dotSize[i], paint) }
+            if (h.edgeVisible) { paint.color = Color.argb(230, 255, 102, 115); c.drawCircle(mx + h.edgeX * inner, my - h.edgeY * inner, 2.8f * d, paint) }
+            paint.color = Color.WHITE; c.drawCircle(mx, my, 3 * d, paint)
         }
 
         // Boost energy meter (bottom centre) — boost itself is a second finger anywhere.
-        val bw = 150 * d; val bh = 10 * d
-        val bx = width / 2f - bw / 2f; val by = height - insetB - 18 * d
-        paint.color = Color.argb(110, 20, 26, 56); rect.set(bx - 4 * d, by - 4 * d, bx + bw + 4 * d, by + bh + 4 * d); c.drawRoundRect(rect, 9 * d, 9 * d, paint)
+        val bw = 110 * d; val bh = 6 * d
+        val bx = width / 2f - bw / 2f; val by = height - insetB - 8 * d
+        paint.color = Color.argb(110, 20, 26, 56); rect.set(bx - 3 * d, by - 3 * d, bx + bw + 3 * d, by + bh + 3 * d); c.drawRoundRect(rect, 6 * d, 6 * d, paint)
         paint.color = if (h.boosting) Color.WHITE else if (h.boostReady) Ui.ACCENT else Color.rgb(150, 150, 175)
-        rect.set(bx, by, bx + bw * h.boost01.coerceIn(0f, 1f), by + bh); c.drawRoundRect(rect, 5 * d, 5 * d, paint)
-        text(if (h.boosting) "BOOST!" else "BOOST", width / 2f, by - 8 * d, 12f, if (h.boosting) Color.WHITE else Color.argb(220, 255, 255, 255), Paint.Align.CENTER)
+        rect.set(bx, by, bx + bw * h.boost01.coerceIn(0f, 1f), by + bh); c.drawRoundRect(rect, 3 * d, 3 * d, paint)
+        if (h.boosting) text("BOOST!", width / 2f, by - 6 * d, 10f, Color.WHITE, Paint.Align.CENTER)
+    }
+
+    private fun textWidth(s: String, sizeDp: Float): Float { textPaint.textSize = sizeDp * d; return textPaint.measureText(s) }
+
+    private fun ellipsize(s: String, maxW: Float, sizeDp: Float): String {
+        if (textWidth(s, sizeDp) <= maxW) return s
+        var n = s.length
+        while (n > 1 && textWidth(s.take(n) + "…", sizeDp) > maxW) n--
+        return s.take(n) + "…"
     }
 
     private fun drawControls(c: Canvas) {
@@ -261,8 +287,8 @@ class HudView(
         if (age < 7f) {
             val a = if (age > 5.5f) (7f - age) / 1.5f else 1f
             val line = if (settings.controls == 1) "Touch where you want to go" else "Drag anywhere to steer"
-            text(line, width / 2f, height * 0.7f, 17f, Color.WHITE, Paint.Align.CENTER, a)
-            text("Second finger (or double-tap & hold) = BOOST", width / 2f, height * 0.7f + 24 * d, 14f, Ui.ACCENT, Paint.Align.CENTER, a)
+            text(line, width / 2f, height * 0.72f, 14f, Color.WHITE, Paint.Align.CENTER, a)
+            text("Second finger (or double-tap & hold) = BOOST", width / 2f, height * 0.72f + 19 * d, 12f, Ui.ACCENT, Paint.Align.CENTER, a)
         }
         if (steerPointer < 0) return
         paint.style = Paint.Style.FILL
@@ -295,5 +321,12 @@ class HudView(
             text("Reconnect now", width / 2f, reconnectRect.centerY() + 6 * d, 16f, Color.WHITE, Paint.Align.CENTER)
         } else reconnectRect.setEmpty()
         if (st == ClientSession.Status.CLOSED) text("Open the menu (II) to leave", width / 2f, height * 0.42f + 32 * d, 14f, Ui.TEXT_DIM, Paint.Align.CENTER)
+    }
+
+    private companion object {
+        const val PAUSE_R = 19f
+        const val MAP_R = 44f
+        /** Touch direction smoothing (1/s): higher = snappier, lower = smoother. */
+        const val INPUT_SHARPNESS = 26f
     }
 }

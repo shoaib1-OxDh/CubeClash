@@ -4,7 +4,29 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
-data class Obstacle(val position: Vec2, val radius: Float, val height: Float)
+/** Look of an obstacle. Collision is always the circle of [Obstacle.radius]; the shape is visual only. */
+enum class ObstacleShape { PILLAR, HEX, DOME, CONE, ROCK, BOX }
+
+data class Obstacle(val position: Vec2, val radius: Float, val height: Float) {
+    /**
+     * Derived from the obstacle's own numbers, so host and every client agree without sending it. Only round shapes
+     * whose footprint matches the collision circle are picked; a few classic boxes remain for variety.
+     */
+    val shape: ObstacleShape = run {
+        var h = position.x.toRawBits() * 31 + position.y.toRawBits()
+        h = h * 31 + radius.toRawBits()
+        h = h xor (h ushr 15); h *= 0x2c1b3c6d; h = h xor (h ushr 12)
+        val k = (h and 0x7fffffff) % 100
+        when {
+            k < 24 -> ObstacleShape.PILLAR
+            k < 44 -> ObstacleShape.HEX
+            k < 60 -> ObstacleShape.DOME
+            k < 74 -> ObstacleShape.CONE
+            k < 92 -> ObstacleShape.ROCK
+            else -> ObstacleShape.BOX
+        }
+    }
+}
 
 /** Visual + collision state of one chain cube (mirrors a [ChainCell]). */
 class Segment internal constructor(val cellId: Int, level: Int, size: Float) {
@@ -253,13 +275,44 @@ class World(
 
     private fun buildObstacles() {
         val a = config.arena
+        val group = ArrayList<Obstacle>(6)
         repeat(a.obstacleCount) {
-            for (attempt in 0 until 20) {
-                val p = rng.insideDisc(arenaRadius - 12f)
-                if (p.length < 18f) continue
-                val r = rng.range(a.obstacleMinRadius, a.obstacleMaxRadius)
-                if (obstacles.any { Vec2.distance(it.position, p) < it.radius + r + 10f }) continue
-                obstacles.add(Obstacle(p, r, rng.range(2.5f, 5f)))
+            for (attempt in 0 until 24) {
+                val p = rng.insideDisc(arenaRadius - 14f)
+                if (p.length < 20f) continue
+                group.clear()
+                val kind = rng.nextFloat()
+                when {
+                    // A curved wall of overlapping pillars: something to hide behind and steer around.
+                    kind < 0.18f -> {
+                        val n = 4 + (rng.nextFloat() * 3).toInt()
+                        val r = rng.range(1.3f, 1.9f)
+                        val h = rng.range(2.5f, 4f)
+                        val dir = rng.nextFloat() * MathUtil.TWO_PI
+                        val bend = rng.range(-0.25f, 0.25f)
+                        var x = p.x; var y = p.y; var ang = dir
+                        repeat(n) { group.add(Obstacle(Vec2(x, y), r, h)); ang += bend; x += kotlin.math.cos(ang) * r * 1.5f; y += kotlin.math.sin(ang) * r * 1.5f }
+                    }
+                    // A cluster of boulders.
+                    kind < 0.42f -> {
+                        val n = 3 + (rng.nextFloat() * 2).toInt()
+                        val big = rng.range(2.2f, 3.4f)
+                        group.add(Obstacle(p, big, rng.range(2.5f, 4.5f)))
+                        repeat(n - 1) {
+                            val ang = rng.nextFloat() * MathUtil.TWO_PI
+                            val r = rng.range(1.1f, 1.8f)
+                            val dd = big + r * 0.6f
+                            group.add(Obstacle(Vec2(p.x + kotlin.math.cos(ang) * dd, p.y + kotlin.math.sin(ang) * dd), r, rng.range(1.6f, 3f)))
+                        }
+                    }
+                    else -> group.add(Obstacle(p, rng.range(a.obstacleMinRadius, a.obstacleMaxRadius), rng.range(3f, 7.5f)))
+                }
+                val fits = group.all { g ->
+                    g.position.length < arenaRadius - 10f - g.radius && g.position.length > 18f &&
+                        obstacles.none { Vec2.distance(it.position, g.position) < it.radius + g.radius + 9f }
+                }
+                if (!fits) continue
+                obstacles.addAll(group)
                 break
             }
         }
@@ -396,7 +449,11 @@ class World(
         val desired = c.desiredDirection
         if (desired != null && desired.lengthSquared > 1e-6f) {
             val maxTurn = move.maxTurnRateDegrees * MathUtil.DEG2RAD * move.turnSensitivity * c.turnSensitivity * dt
-            c.heading = MathUtil.rotateTowards(c.heading, desired.angle, maxTurn)
+            // Ease into the target heading: full turn rate for big turns, a smooth glide for small corrections,
+            // so steering never snaps or wobbles around the finger direction.
+            val diff = kotlin.math.abs(MathUtil.wrapAngle(desired.angle - c.heading))
+            val eased = max(diff * MathUtil.smoothFactor(move.turnEasing * c.turnSensitivity, dt), 0.15f * maxTurn)
+            c.heading = MathUtil.rotateTowards(c.heading, desired.angle, min(maxTurn, eased))
         }
         var fwd = Vec2.fromAngle(c.heading)
         var px = c.headX + fwd.x * c.speed * dt

@@ -43,18 +43,19 @@ object Ui {
     @Suppress("DEPRECATION")
     fun html(s: String): CharSequence = Html.fromHtml(s)
 
-    fun button(c: Context, label: String, color: Int, sizeSp: Float = 18f, onClick: (() -> Unit)? = null): TextView =
+    fun button(c: Context, label: String, color: Int, sizeSp: Float = 16f, compact: Boolean = false, onClick: (() -> Unit)? = null): TextView =
         text(c, label, sizeSp).apply {
-            background = RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), rounded(color, dp(c, 16f)), null)
-            val pv = dpi(c, 12f); val ph = dpi(c, 14f)
+            background = RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), rounded(color, dp(c, 14f)), null)
+            val pv = dpi(c, if (compact) 6f else 9f); val ph = dpi(c, if (compact) 8f else 12f)
             setPadding(ph, pv, ph, pv)
-            minHeight = dpi(c, 52f)
+            minHeight = dpi(c, if (compact) 40f else 46f)
+            maxLines = 2
             isClickable = true; isFocusable = true
             if (onClick != null) setOnClickListener { Sounds.click(); onClick() }
         }
 
     fun setButtonColor(b: TextView, color: Int) {
-        b.background = RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), rounded(color, dp(b.context, 16f)), null)
+        b.background = RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), rounded(color, dp(b.context, 14f)), null)
     }
 
     fun vertical(c: Context, spacingDp: Float = 10f) = LinearLayout(c).apply {
@@ -73,13 +74,13 @@ object Ui {
     fun matchWrap() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 
     /** Segmented selector; returns the container. */
-    fun segmented(c: Context, label: String?, options: List<String>, selected: Int, onSelect: (Int) -> Unit): LinearLayout {
-        val col = vertical(c, 6f)
-        if (label != null) col.addView(text(c, label, 14f, TEXT_DIM, gravity = Gravity.START), matchWrap())
-        val row = horizontal(c, 8f)
+    fun segmented(c: Context, label: String?, options: List<String>, selected: Int, compact: Boolean = false, onSelect: (Int) -> Unit): LinearLayout {
+        val col = vertical(c, 4f)
+        if (label != null) col.addView(text(c, label, if (compact) 12f else 13f, TEXT_DIM, gravity = Gravity.START), matchWrap())
+        val row = horizontal(c, 6f)
         val buttons = ArrayList<TextView>()
         options.forEachIndexed { i, o ->
-            val b = button(c, o, if (i == selected) PRIMARY else PANEL_LIGHT, 15f)
+            val b = button(c, o, if (i == selected) PRIMARY else PANEL_LIGHT, if (compact) 12f else 14f, compact = true)
             b.setOnClickListener {
                 Sounds.click()
                 buttons.forEachIndexed { k, bb -> setButtonColor(bb, if (k == i) PRIMARY else PANEL_LIGHT) }
@@ -94,8 +95,8 @@ object Ui {
 
     fun toggleRow(c: Context, label: String, get: () -> Boolean, set: (Boolean) -> Unit): LinearLayout {
         val row = horizontal(c, 10f).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(text(c, label, 16f, gravity = Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f))
-        val b = button(c, if (get()) "ON" else "OFF", if (get()) GOOD else PANEL_LIGHT, 15f)
+        row.addView(text(c, label, 14f, gravity = Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f))
+        val b = button(c, if (get()) "ON" else "OFF", if (get()) GOOD else PANEL_LIGHT, 14f, compact = true)
         b.setOnClickListener {
             Sounds.click()
             val v = !get(); set(v)
@@ -107,7 +108,7 @@ object Ui {
 
     fun sliderRow(c: Context, label: String, min: Float, max: Float, value: Float, onChange: (Float) -> Unit): LinearLayout {
         val row = horizontal(c, 10f).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(text(c, label, 16f, gravity = Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(text(c, label, 14f, gravity = Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val bar = SeekBar(c).apply {
             this.max = 100
             progress = (((value - min) / (max - min)) * 100).toInt().coerceIn(0, 100)
@@ -119,11 +120,11 @@ object Ui {
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
-        row.addView(bar, LinearLayout.LayoutParams(0, dpi(c, 44f), 1.3f))
+        row.addView(bar, LinearLayout.LayoutParams(0, dpi(c, 38f), 1.3f))
         return row
     }
 
-    fun header(c: Context, s: String) = text(c, s.uppercase(), 14f, ACCENT, gravity = Gravity.START).apply { setPadding(0, dpi(c, 10f), 0, 0) }
+    fun header(c: Context, s: String) = text(c, s.uppercase(), 12f, ACCENT, gravity = Gravity.START).apply { setPadding(0, dpi(c, 6f), 0, 0) }
 
     /**
      * Full-screen dimmed overlay with a centred card. [content] receives the scrollable column. Returns the overlay;
@@ -132,12 +133,12 @@ object Ui {
     fun modal(parent: FrameLayout, title: String, maxWidthDp: Float = 460f, scroll: Boolean = true, content: (LinearLayout) -> Unit): FrameLayout {
         val c = parent.context
         val overlay = FrameLayout(c).apply { setBackgroundColor(OVERLAY); isClickable = true }
-        val card = vertical(c, 12f).apply {
-            background = rounded(PANEL, dp(c, 24f))
-            val p = dpi(c, 20f); setPadding(p, p, p, p)
+        val card = vertical(c, 8f).apply {
+            background = rounded(PANEL, dp(c, 20f))
+            val p = dpi(c, 14f); setPadding(p, p, p, p)
         }
-        card.addView(text(c, title, 28f), matchWrap())
-        val body = vertical(c, 10f)
+        card.addView(text(c, title, 22f), matchWrap())
+        val body = vertical(c, 8f)
         content(body)
         if (scroll) {
             val sv = ScrollView(c).apply { isFillViewport = false; addView(body, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)) }
@@ -146,7 +147,7 @@ object Ui {
         val screenW = c.resources.displayMetrics.widthPixels
         val w = minOf(dpi(c, maxWidthDp), (screenW * 0.94f).toInt())
         val lp = FrameLayout.LayoutParams(w, if (scroll) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
-        val m = dpi(c, 24f); lp.setMargins(0, m, 0, m)
+        val m = dpi(c, 12f); lp.setMargins(0, m, 0, m)
         overlay.addView(card, lp)
         parent.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         overlay.alpha = 0f; overlay.animate().alpha(1f).setDuration(150).start()

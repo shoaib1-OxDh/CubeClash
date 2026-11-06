@@ -16,7 +16,8 @@ import com.oxdh.cubeclash.gfx.Palette
 
 /** Settings, How to Play, High Score & Stats, Customize and Privacy & Credits screens. */
 object Dialogs {
-    fun settings(parent: FrameLayout, s: Settings, save: SaveStore?, onClose: () -> Unit): FrameLayout {
+    /** [onReopen] receives the rebuilt dialog after "Reset all settings" so the caller can track it. */
+    fun settings(parent: FrameLayout, s: Settings, save: SaveStore?, onReopen: ((FrameLayout) -> Unit)? = null, onClose: () -> Unit): FrameLayout {
         lateinit var overlay: FrameLayout
         overlay = Ui.modal(parent, "Settings") { col ->
             val c = col.context
@@ -36,13 +37,30 @@ object Dialogs {
             col.addView(Ui.header(c, "Graphics"))
             col.addView(Ui.toggleRow(c, "Low effects", { s.lowEffects }, { s.lowEffects = it }))
             col.addView(Ui.segmented(c, "Frame rate", listOf("30 FPS", "60 FPS"), if (s.targetFps >= 60) 1 else 0) { s.targetFps = if (it == 1) 60 else 30 })
+            col.addView(Ui.header(c, "Reset"))
+            var settingsArmed = false
+            lateinit var resetSettings: android.widget.TextView
+            resetSettings = Ui.button(c, "Reset all settings", Ui.PANEL_LIGHT, 15f) {
+                if (!settingsArmed) { settingsArmed = true; resetSettings.text = "Tap again to reset settings"; Ui.setButtonColor(resetSettings, Ui.DANGER) }
+                else {
+                    s.resetToDefaults()
+                    // Rebuild the dialog so every control shows its default value again.
+                    Ui.close(overlay)
+                    val fresh = settings(parent, s, save, onReopen, onClose)
+                    onReopen?.invoke(fresh)
+                    android.widget.Toast.makeText(c, "Settings reset to defaults", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            col.addView(resetSettings, Ui.matchWrap())
             if (save != null) {
-                col.addView(Ui.header(c, "Data"))
                 var armed = false
                 lateinit var reset: android.widget.TextView
-                reset = Ui.button(c, "Reset progress", Ui.PANEL_LIGHT, 16f) {
-                    if (!armed) { armed = true; reset.text = "Tap again to confirm"; Ui.setButtonColor(reset, Ui.DANGER) }
-                    else { save.reset(); reset.text = "Progress reset"; reset.isEnabled = false }
+                reset = Ui.button(c, "Reset progress & high scores", Ui.PANEL_LIGHT, 15f) {
+                    if (!armed) { armed = true; reset.text = "Tap again to erase progress"; Ui.setButtonColor(reset, Ui.DANGER) }
+                    else {
+                        save.reset(); reset.text = "Progress reset"; reset.isEnabled = false; Ui.setButtonColor(reset, Ui.PANEL_LIGHT)
+                        android.widget.Toast.makeText(c, "Progress reset", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
                 col.addView(reset, Ui.matchWrap())
             }
@@ -135,6 +153,7 @@ object Dialogs {
         "<b>Merge</b><br>Two neighbouring cubes with the same number merge into double: 1+1=2, 2+2=4, 4+4=8 … Your chain stays sorted, biggest at the front, and merges cascade one step at a time.<br><br>" +
         "<b>Boost</b><br>While steering with one thumb, hold a <b>second finger</b> anywhere to boost (or double-tap and hold). It drains the energy bar, which refills when you let go.<br><br>" +
         "<b>Eating snakes</b><br>Your number is your leading cube. With the front of your head you can eat any snake cube with a <b>smaller</b> number: bite the head to eat the whole snake, or the tail to eat it from there. Equal or bigger numbers are solid — you bounce off. Small snakes can nibble your small tail cubes from behind, so turn around fast and eat them!<br><br>" +
+        "<b>Ranking</b><br>The leaderboard ranks everyone by the number on their leading cube; score breaks ties.<br><br>" +
         "<b>Watch out</b><br>Name tags are <font color='#FF8C99'>red</font> on rivals bigger than you and <font color='#9CFFB3'>green</font> on rivals you can beat. The minimap uses the same colours.<br><br>" +
         "<b>Modes</b><br>Classic Arena: compete and survive.<br>Endless Growth: relaxed — you can't be eaten.<br>Survival Challenge: rivals get tougher every minute and boost recovers slowly.<br><br>" +
         "<b>Play with friends</b><br>Local: everyone on the same Wi-Fi or your hotspot. Online: create a room and share its code. In multiplayer you respawn after being eaten; the leaderboard shows everyone live."

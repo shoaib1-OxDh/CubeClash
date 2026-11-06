@@ -25,7 +25,8 @@ an AAB. For Google Play, add your own keystore as secrets (see below) — the pu
 ## Gameplay
 
 * **Move** — put a finger down **anywhere** and drag: the snake turns towards the drag direction and keeps moving
-  (alternative in Settings: *Point to steer*). Works in portrait and landscape.
+  (alternative in Settings: *Point to steer*). Played in landscape; steering is lightly smoothed and the snake
+  eases into small corrections, so it glides instead of snapping.
 * **Boost** — hold a **second finger** anywhere (steer with one thumb, boost with the other), or double-tap and hold
   with one finger. Boost drains an energy bar that refills when released.
 * **Collect** cubes whose number is not bigger than your leading cube. **Bigger cubes are solid**: the snake can't
@@ -44,7 +45,7 @@ Exact rules: [`docs/GAME_RULES.md`](docs/GAME_RULES.md).
 ## Multiplayer
 
 *Menu → PLAY WITH FRIENDS*. Rooms are drop-in: friends can join at any time, eaten players respawn after 3 s, the
-leaderboard shows everyone live, and the host can add 0 / 3 / 6 bots.
+leaderboard (ranked by each snake's leading cube number) shows everyone live, and the host can add 0 / 3 / 6 bots.
 
 | | How | Needs |
 |---|---|---|
@@ -127,12 +128,12 @@ On GitHub add the secrets `KEYSTORE_BASE64` (`base64 -w0 cubeclash-release.jks`)
 All balance lives in `engine/src/main/kotlin/com/oxdh/cubeclash/engine/Config.kt` and `Numbers.kt`
 (`GameConfig`, `RulesConfig`, `MovementConfig`, `BoostConfig`, `SpawnConfig`, `ArenaConfig`, AI presets,
 `GameModeSettings`). In-game settings: volumes, mute, joystick / tap steering, turn speed, joystick size, camera mode,
-zoom, follow speed, minimap, low effects, 30/60 FPS, reset progress.
+zoom, follow speed, minimap, low effects, 30/60 FPS, reset all settings, reset progress.
 
 ## Technical notes
 
 * Min Android 7.0 (API 24), target API 35, OpenGL ES 3.0. Single player works offline; multiplayer uses only
   normal network permissions (no runtime prompts).
-* Portrait and landscape, notches and gesture bars handled (safe insets).
+* Landscape only (either side up), notches and gesture bars handled (safe insets).
 * Performance: one instanced draw call for all cubes, one per sprite layer; spatial hashes for queries;
   change-only label strings; idle animation only near the camera; low-effects mode and 30 FPS option.

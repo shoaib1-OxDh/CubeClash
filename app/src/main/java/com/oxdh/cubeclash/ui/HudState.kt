@@ -31,9 +31,11 @@ class HudState {
     /** Camera yaw (radians) used to rotate screen input into world directions. */
     @Volatile var cameraYaw = 0f
 
-    // Leaderboard (top 5 + player if outside).
+    // Leaderboard (top 5 + player if outside), ranked by leading cube number, then score.
     val lbNames = arrayOfNulls<String>(6)
     val lbScores = LongArray(6)
+    /** Leading cube level of each entry: the leaderboard ranks by the number on the front cube. */
+    val lbLevels = IntArray(6)
     val lbRanks = IntArray(6)
     val lbIsPlayer = BooleanArray(6)
     val lbIsHuman = BooleanArray(6)

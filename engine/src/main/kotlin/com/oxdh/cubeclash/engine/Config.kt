@@ -80,7 +80,9 @@ data class MovementConfig(
     var deceleration: Float = 10f,
     var turnSensitivity: Float = 1f,
     /** Degrees per second. */
-    var maxTurnRateDegrees: Float = 360f,
+    var maxTurnRateDegrees: Float = 400f,
+    /** How quickly the heading glides onto small steering corrections (1/s). */
+    var turnEasing: Float = 11f,
     /** Gap between consecutive cubes as a fraction of their average size. */
     var chainGapFactor: Float = 1.08f,
     var followSharpness: Float = 10f,
@@ -95,8 +97,8 @@ data class MovementConfig(
 }
 
 data class SpawnConfig(
-    var targetCollectibles: Int = 260,
-    var maxCollectibles: Int = 520,
+    var targetCollectibles: Int = 420,
+    var maxCollectibles: Int = 800,
     var minSpacing: Float = 2.2f,
     var minDistanceFromHeads: Float = 6f,
     var maxPlacementAttempts: Int = 12,
@@ -111,10 +113,11 @@ data class SpawnConfig(
 )
 
 data class ArenaConfig(
-    var radius: Float = 120f,
-    var obstacleCount: Int = 14,
-    var obstacleMinRadius: Float = 2f,
-    var obstacleMaxRadius: Float = 4.5f,
+    var radius: Float = 165f,
+    /** Obstacle groups: single shapes, boulder clusters and short curved walls. */
+    var obstacleCount: Int = 34,
+    var obstacleMinRadius: Float = 1.8f,
+    var obstacleMaxRadius: Float = 5.5f,
     var boundaryWarningDistance: Float = 14f,
 )
 
@@ -160,15 +163,15 @@ data class GameModeSettings(
         fun forMode(mode: GameMode): GameModeSettings = when (mode) {
             GameMode.ENDLESS_GROWTH -> GameModeSettings(mode, "Endless Growth",
                 "Relaxed exploration. Rivals never hunt you and you cannot be defeated. Reach the biggest number you can!",
-                rivalCount = 7, playerCanBeDefeated = false, rivalsAggressive = false, collectibleDensityMultiplier = 1.35f,
+                rivalCount = 9, playerCanBeDefeated = false, rivalsAggressive = false, collectibleDensityMultiplier = 1.35f,
                 boostRegenMultiplier = 1.5f, rivalRespawnDelay = 3f, rivalBaseMaxLevel = 3)
             GameMode.SURVIVAL_CHALLENGE -> GameModeSettings(mode, "Survival Challenge",
                 "Rivals grow stronger and more aggressive every minute and boost energy recovers slowly. How long can you last?",
-                rivalCount = 10, collectibleDensityMultiplier = 0.9f, boostRegenMultiplier = 0.5f, rivalRespawnDelay = 3f,
+                rivalCount = 12, collectibleDensityMultiplier = 0.9f, boostRegenMultiplier = 0.5f, rivalRespawnDelay = 3f,
                 difficultyRampMinutes = 6f, rivalLevelPerMinute = 0.8f, rivalBaseMaxLevel = 3)
             GameMode.CLASSIC -> GameModeSettings(mode, "Classic Arena",
                 "Collect cubes, merge numbers, outgrow your rivals and survive as long as possible.",
-                rivalCount = 9, rivalRespawnDelay = 4f, rivalBaseMaxLevel = 4)
+                rivalCount = 12, rivalRespawnDelay = 4f, rivalBaseMaxLevel = 4)
         }
     }
 }

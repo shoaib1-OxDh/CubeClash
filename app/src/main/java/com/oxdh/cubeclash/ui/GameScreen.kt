@@ -58,7 +58,7 @@ class GameScreen(private val activity: MainActivity, val session: GameSession) :
             col.addView(Ui.button(c, "Restart", Ui.PRIMARY) { record(); activity.startGame(session.mode.ordinal, session.difficulty.ordinal) }, Ui.matchWrap())
             col.addView(Ui.button(c, "Settings", Ui.PANEL_LIGHT) {
                 o.visibility = INVISIBLE
-                subModal = Dialogs.settings(this, settings, null) { subModal = null; o.visibility = VISIBLE }
+                subModal = Dialogs.settings(this, settings, null, { subModal = it }) { subModal = null; o.visibility = VISIBLE }
             }, Ui.matchWrap())
             col.addView(Ui.button(c, "End Run", Ui.ACCENT) { Ui.close(o); pauseOverlay = null; session.paused = false; session.endRequested = true }, Ui.matchWrap())
             col.addView(Ui.button(c, "Main Menu", Ui.DANGER) { record(); activity.showMenu() }, Ui.matchWrap())
@@ -104,7 +104,7 @@ class GameScreen(private val activity: MainActivity, val session: GameSession) :
                 col.addView(Ui.button(c, "Reconnect now", Ui.PRIMARY) { glView.queueEvent { session.client?.reconnectNow() } }, Ui.matchWrap())
             col.addView(Ui.button(c, "Settings", Ui.PANEL_LIGHT) {
                 o.visibility = INVISIBLE
-                subModal = Dialogs.settings(this, settings, null) { subModal = null; o.visibility = VISIBLE }
+                subModal = Dialogs.settings(this, settings, null, { subModal = it }) { subModal = null; o.visibility = VISIBLE }
             }, Ui.matchWrap())
             val leave = if (session.kind == GameSession.Kind.HOST) "End room for everyone" else "Leave room"
             col.addView(Ui.button(c, leave, Ui.DANGER) { record(); activity.showMenu() }, Ui.matchWrap())

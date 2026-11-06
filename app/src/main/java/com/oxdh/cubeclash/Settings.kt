@@ -39,6 +39,15 @@ class Settings(context: Context) {
         get() = p.getString("clientId", null) ?: java.util.UUID.randomUUID().toString().also { p.edit().putString("clientId", it).apply() }
     var bots: Int get() = i("mpBots", 3, 0, 8); set(v) = put { putInt("mpBots", v) }
 
+    /** Restores every preference to its default, keeping only the player's name and network identity. */
+    fun resetToDefaults() {
+        val keep = listOf("name", "clientId")
+        val e = p.edit()
+        for (k in p.all.keys) if (k !in keep) e.remove(k)
+        e.commit()
+        listeners.forEach { it() }
+    }
+
     private inline fun put(block: SharedPreferences.Editor.() -> Unit) {
         p.edit().apply(block).apply()
         listeners.forEach { it() }

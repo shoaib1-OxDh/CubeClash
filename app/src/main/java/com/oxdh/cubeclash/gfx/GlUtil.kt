@@ -94,3 +94,95 @@ object CubeMesh {
         indices = idx.toShortArray()
     }
 }
+
+/** A mesh in the same interleaved layout as [CubeMesh] (px,py,pz, nx,ny,nz, u,v). */
+class Mesh(val vertices: FloatArray, val indices: ShortArray)
+
+/**
+ * Builds round obstacle and arena meshes by spinning a (radius, height) profile around the Y axis. Profiles go from
+ * the bottom up and end at the top centre. Unit shapes fit the same -0.5..0.5 box as the cube, so the cube shader's
+ * instance size / height multiplier place them; UVs all point at the centre of the plain atlas cell.
+ */
+object Shapes {
+    /**
+     * @param smoothAround smooth normals around the axis (cylinder) or flat facets (hexagon, rock).
+     * @param noise optional radial jitter per (segment, profile point) for rocky looks.
+     */
+    fun lathe(profile: FloatArray, segments: Int, smoothAround: Boolean, noise: ((Int, Int) -> Float)? = null): Mesh {
+        val pts = profile.size / 2
+        val v = ArrayList<Float>(segments * pts * 32)
+        val idx = ArrayList<Short>(segments * pts * 6)
+        fun pos(i: Int, j: Int, out: FloatArray) {
+            val a = (i % segments) / segments.toFloat() * (Math.PI * 2).toFloat()
+            val n = noise?.invoke(i % segments, j) ?: 1f
+            val r = profile[j * 2] * n
+            out[0] = r * kotlin.math.cos(a); out[1] = profile[j * 2 + 1]; out[2] = r * kotlin.math.sin(a)
+        }
+        // Outward profile normal of edge j (from point j to j+1) in (r, y).
+        fun edgeN(j: Int): FloatArray {
+            val dr = profile[j * 2 + 2] - profile[j * 2]; val dy = profile[j * 2 + 3] - profile[j * 2 + 1]
+            val l = kotlin.math.sqrt(dr * dr + dy * dy).coerceAtLeast(1e-6f)
+            return floatArrayOf(dy / l, -dr / l)
+        }
+        val p = Array(4) { FloatArray(3) }
+        for (i in 0 until segments) for (j in 0 until pts - 1) {
+            pos(i, j, p[0]); pos(i + 1, j, p[1]); pos(i + 1, j + 1, p[2]); pos(i, j + 1, p[3])
+            val en = edgeN(j)
+            val start = v.size / 8
+            if (smoothAround && noise == null) {
+                for ((k, ii) in intArrayOf(i, i + 1, i + 1, i).withIndex()) {
+                    val a = (ii % segments) / segments.toFloat() * (Math.PI * 2).toFloat()
+                    v.add(p[k][0]); v.add(p[k][1]); v.add(p[k][2])
+                    v.add(en[0] * kotlin.math.cos(a)); v.add(en[1]); v.add(en[0] * kotlin.math.sin(a))
+                    v.add(0.5f); v.add(0.5f)
+                }
+            } else {
+                // Flat facet: cross product of the diagonals, oriented like the analytic outward normal.
+                val ax = p[2][0] - p[0][0]; val ay = p[2][1] - p[0][1]; val az = p[2][2] - p[0][2]
+                val bx = p[3][0] - p[1][0]; val by = p[3][1] - p[1][1]; val bz = p[3][2] - p[1][2]
+                var nx = ay * bz - az * by; var ny = az * bx - ax * bz; var nz = ax * by - ay * bx
+                val am = (i + 0.5f) / segments * (Math.PI * 2).toFloat()
+                val ex = en[0] * kotlin.math.cos(am); val ez = en[0] * kotlin.math.sin(am)
+                if (nx * ex + ny * en[1] + nz * ez < 0f) { nx = -nx; ny = -ny; nz = -nz }
+                val l = kotlin.math.sqrt(nx * nx + ny * ny + nz * nz).coerceAtLeast(1e-6f)
+                for (k in 0..3) { v.add(p[k][0]); v.add(p[k][1]); v.add(p[k][2]); v.add(nx / l); v.add(ny / l); v.add(nz / l); v.add(0.5f); v.add(0.5f) }
+            }
+            for (t in intArrayOf(0, 1, 2, 0, 2, 3)) idx.add((start + t).toShort())
+        }
+        return Mesh(v.toFloatArray(), idx.toShortArray())
+    }
+
+    private fun dome(): FloatArray {
+        val out = ArrayList<Float>()
+        out.add(0.5f); out.add(-0.5f)
+        val steps = 8
+        for (k in 1..steps) {
+            val a = k / steps.toFloat() * (Math.PI / 2).toFloat()
+            out.add(0.5f * kotlin.math.cos(a)); out.add(-0.5f + kotlin.math.sin(a))
+        }
+        return out.toFloatArray()
+    }
+
+    val pillar by lazy { lathe(floatArrayOf(0.5f, -0.5f, 0.5f, 0.38f, 0.46f, 0.47f, 0.38f, 0.5f, 0f, 0.5f), 24, true) }
+    val hex by lazy { lathe(floatArrayOf(0.5f, -0.5f, 0.5f, 0.4f, 0.42f, 0.5f, 0f, 0.5f), 6, false) }
+    val dome by lazy { lathe(dome(), 20, true) }
+    val cone by lazy { lathe(floatArrayOf(0.5f, -0.5f, 0.42f, -0.3f, 0.16f, 0.45f, 0.1f, 0.5f, 0f, 0.5f), 18, true) }
+    val rock by lazy {
+        lathe(floatArrayOf(0.5f, -0.5f, 0.52f, -0.1f, 0.42f, 0.28f, 0.22f, 0.5f, 0f, 0.5f), 7, false) { i, j ->
+            if (j == 4) 1f else 0.82f + 0.3f * ((((i * 73 + j * 151) * 2654435761L).toInt() ushr 24) and 0xff).toFloat() / 255f
+        }
+    }
+
+    /** Low rounded wall around the arena edge, in world units (inner face at [radius]). */
+    fun ringWall(radius: Float, thickness: Float, height: Float): Mesh {
+        val r0 = radius; val r1 = radius + thickness
+        // Inner face is walked top-down so its normals point towards the arena.
+        val inner = floatArrayOf(r0, 0f, r0, height * 0.78f, r0 + thickness * 0.18f, height)
+        val outer = floatArrayOf(r1 - thickness * 0.18f, height, r1, height * 0.78f, r1, 0f)
+        val segs = (radius * 1.1f).toInt().coerceIn(96, 400)
+        // One profile from the inner foot over the top to the outer foot; edge normals of that path point "left",
+        // so walk it reversed (outer foot -> inner foot) to keep them outward-facing (up / away from the wall core).
+        val path = (inner.toList() + outer.toList()).chunked(2).reversed().flatten().toFloatArray()
+        return lathe(path, segs, true)
+    }
+}
