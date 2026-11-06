@@ -1,45 +1,23 @@
-# Unity generated
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-/[Bb]uild/
-/[Bb]uilds/
-/[Ll]ogs/
-/[Uu]ser[Ss]ettings/
-/[Mm]emoryCaptures/
-/[Rr]ecordings/
-/Assets/Plugins/Editor/JetBrains*
-*.pidb.meta
-*.pdb.meta
-*.mdb.meta
-sysinfo.txt
-crashlytics-build.properties
-/[Aa]ssets/[Ss]treamingAssets/aa.meta
-/[Aa]ssets/[Ss]treamingAssets/aa/*
-
-# IDE
-.vs/
-.vscode/
+# Gradle / Android
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
 .idea/
-*.csproj
-!tools/**/*.csproj
-*.sln
-*.suo
-*.user
-*.userprefs
-*.unityproj
-*.DotSettings.user
+.kotlin/
 
-# Android build outputs and secrets
+# Signing (never commit)
+keystore.properties
+*.jks
+*.keystore
+!app/cubeclash-debug.keystore
+
+# Outputs
 *.apk
 *.aab
-*.keystore
-*.jks
 *.idsig
-
-# dotnet logic tests
-tools/**/bin/
-tools/**/obj/
-TestResults/
 
 .DS_Store

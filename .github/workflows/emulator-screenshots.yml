@@ -1,0 +1,191 @@
+name: Emulator screenshots
+
+# Boots an Android emulator, installs the debug APK, opens the menu and an AI-driven ("autoplay") match, and
+# saves screenshots. They are uploaded as an artifact and pushed to the orphan "emulator-screens" branch.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/emulator-screenshots.yml
+      - app/src/main/**
+      - engine/src/main/**
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare Gradle wrapper
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK and the headless multiplayer bot
+        run: ./gradlew :app:assembleDebug :engine:classes --stacktrace
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /usr/local/share/boost "$AGENT_TOOLSDIRECTORY/CodeQL" || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk || true
+          df -h /
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start the emulator
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "emulator" "platform-tools" "system-images;android-30;google_apis;x86_64" > /dev/null
+          export ANDROID_AVD_HOME="$HOME/.android/avd"; mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          echo no | avdmanager create avd -n tour -k "system-images;android-30;google_apis;x86_64" -d pixel_5 --force
+          sed -i 's/^disk.dataPartition.size=.*/disk.dataPartition.size=2G/' "$ANDROID_AVD_HOME/tour.avd/config.ini"
+          grep -q '^disk.dataPartition.size' "$ANDROID_AVD_HOME/tour.avd/config.ini" || echo 'disk.dataPartition.size=2G' >> "$ANDROID_AVD_HOME/tour.avd/config.ini"
+          nohup "$ANDROID_HOME/emulator/emulator" -avd tour -no-window -no-snapshot -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -accel on -cores 4 -memory 4096 -camera-back none -partition-size 2048 > emulator.log 2>&1 &
+          sleep 20
+          booted() { timeout 600 adb wait-for-device && timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'; }
+          booted || { echo "---- emulator.log ----"; tail -80 emulator.log; exit 1; }
+          adb shell input keyevent 82 || true
+          adb shell settings put global hide_error_dialogs 1 || true
+          sleep 15
+          echo "Booted"
+
+      - name: Capture screenshots
+        run: |
+          mkdir -p screens
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb logcat -c || true
+          # The software-rendered CI emulator often shows "System UI isn't responding"; press its "Wait" button.
+          cat > /tmp/anr.sh <<'SH'
+          dismiss() {
+            for k in 1 2; do
+              adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || return 0
+              B=$(adb shell cat /sdcard/ui.xml 2>/dev/null | grep -o 'text="Wait"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"' | head -1)
+              [ -z "$B" ] && return 0
+              set -- $(echo "$B" | tr -dc '0-9,[]' | tr '[],' '   ')
+              adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); echo "dismissed a system dialog"; sleep 1
+            done
+          }
+          shot() { dismiss; adb exec-out screencap -p > "screens/$1.png"; echo "captured $1"; }
+          SH
+          sed -i 's/^          //' /tmp/anr.sh
+          . /tmp/anr.sh
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity
+          sleep 8; shot 01-menu
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --ez autoplay true --ei mode 0
+          sleep 6; shot 02-game-start
+          sleep 15; shot 03-game-20s
+          sleep 25; shot 04-game-45s
+          adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
+          adb shell input keyevent KEYCODE_BACK; sleep 2; shot 05-paused
+          adb shell input keyevent KEYCODE_BACK; sleep 1
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity > /dev/null; sleep 1
+          adb shell settings put system accelerometer_rotation 0 || true
+          adb shell settings put system user_rotation 1 || true
+          sleep 6; shot 06-landscape
+          adb shell settings put system user_rotation 0 || true
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --ez autoplay true --ei mode 1
+          sleep 30; shot 07-endless-30s
+
+          # Touch controls (real input events): drag to steer, then double-tap and hold to boost.
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --ez autoplay false --ei mode 1 > /dev/null
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity > /dev/null
+          sleep 4; dismiss
+          # Start a solo game from the menu: find the PLAY button on screen and tap it.
+          adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
+          PB=$(adb shell cat /sdcard/ui.xml | grep -o 'text="PLAY"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"' | head -1)
+          set -- $(echo "$PB" | tr -dc '0-9,[]' | tr '[],' '   ')
+          echo "PLAY at $PB"; adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+          sleep 5; shot 08-solo-start
+          dismiss
+          # The game is landscape-only, so touch coordinates are in a wide (e.g. 2400x1080) frame.
+          adb shell input swipe 1200 760 1600 760 1200; adb exec-out screencap -p > screens/09-drag-right.png
+          adb shell input swipe 1200 760 1200 420 1200; adb exec-out screencap -p > screens/10-drag-up.png
+          adb shell input tap 1200 700; adb shell input swipe 1200 700 1205 705 1500 &
+          sleep 0.8; adb exec-out screencap -p > screens/11-double-tap-boost.png; wait
+
+          adb logcat -d -v brief > logcat.txt || true
+          grep -E "AndroidRuntime|FATAL|CubeClash|GL_INVALID|Shader|EGL" logcat.txt | head -100 > logcat-summary.txt || true
+          cat logcat-summary.txt
+          ls -la screens
+
+      - name: Multiplayer — app hosts a LAN room, a separate bot joins over TCP
+        run: |
+          . /tmp/anr.sh
+          adb shell am force-stop com.oxdh.cubeclash
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --es mp lan_host --ei bots 2 --ez autoplay true
+          sleep 6
+          adb forward tcp:47800 tcp:47800
+          ./gradlew -q :engine:netbot --args="lan-join 127.0.0.1 47800 45" > lan-bot.log 2>&1 &
+          BOT=$!
+          sleep 25; shot 12-lan-host-with-bot
+          sleep 12; shot 13-lan-host-later
+          wait $BOT; STATUS=$?
+          cat lan-bot.log
+          adb forward --remove-all || true
+          test $STATUS -eq 0
+
+      - name: Multiplayer — a bot hosts an online room, the app joins with the code
+        run: |
+          . /tmp/anr.sh
+          adb shell am force-stop com.oxdh.cubeclash
+          rm -f code.txt
+          ./gradlew -q :engine:netbot --args="online-host 75 $PWD/code.txt" > online-host.log 2>&1 &
+          BOT=$!
+          for i in $(seq 1 60); do [ -s code.txt ] && break; sleep 1; done
+          CODE=$(cat code.txt); echo "Room code: $CODE"
+          adb shell am start -W -n com.oxdh.cubeclash/.MainActivity --es mp online_join --es code "$CODE" --ez autoplay true
+          sleep 25; shot 14-online-client
+          sleep 15; shot 15-online-client-later
+          adb shell input keyevent KEYCODE_BACK; sleep 2; shot 16-online-room-menu
+          wait $BOT; STATUS=$?
+          cat online-host.log
+          adb logcat -d -v brief | grep -E "AndroidRuntime|FATAL|CubeClash" | tail -40 >> logcat-summary.txt || true
+          test $STATUS -eq 0
+
+      - name: Publish screenshots branch
+        if: always()
+        run: |
+          [ -d screens ] && [ -n "$(ls -A screens 2>/dev/null)" ] || { echo "No screenshots"; exit 0; }
+          mkdir -p /tmp/pub && cp screens/* /tmp/pub/ && cp logcat-summary.txt lan-bot.log online-host.log /tmp/pub/ 2>/dev/null || true
+          cd /tmp/pub
+          git init -q -b emulator-screens
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -q -m "Emulator screenshots for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" emulator-screens
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-screenshots
+          if-no-files-found: warn
+          path: |
+            screens/
+            lan-bot.log
+            online-host.log
+            logcat.txt
+            logcat-summary.txt
+            emulator.log
