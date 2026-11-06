@@ -1,0 +1,17 @@
+[netbot] online room AA59MY via Relay(host=broker.emqx.io, port=8883, tls=true)
+[netbot] t=0s peers=[] inputs=0
+[netbot] t=5s peers=[Player1180:on:[1]] inputs=1
+[netbot] t=10s peers=[Player1180:on:[1]] inputs=13
+[netbot] t=15s peers=[Player1180:on:[2]] inputs=25
+[netbot] t=20s peers=[Player1180:on:[2, 1]] inputs=35
+[netbot] t=25s peers=[Player1180:on:[2, 1]] inputs=48
+[netbot] t=30s peers=[Player1180:on:[4, 1]] inputs=60
+[netbot] t=35s peers=[Player1180:on:[4, 1]] inputs=72
+[netbot] t=40s peers=[Player1180:on:[4, 1]] inputs=85
+[netbot] t=45s peers=[Player1180:on:[4, 1]] inputs=99
+[netbot] t=50s peers=[Player1180:on:[4, 1]] inputs=112
+[netbot] t=55s peers=[Player1180:on:[4, 1]] inputs=123
+[netbot] t=60s peers=[Player1180:on:[4, 1]] inputs=133
+[netbot] t=65s peers=[Player1180:on:[8, 2, 1]] inputs=144
+[netbot] t=70s peers=[Player1180:on:[8, 2, 1]] inputs=156
+[netbot] RESULT OK maxPeers=1 inputs=168 collectedByPlayers=7 bestLevel=3

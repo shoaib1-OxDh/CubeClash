@@ -1,0 +1,10 @@
+[netbot] t=0s status=CONNECTING states=0 rtt=-1ms players=0 chain=null score=null
+[netbot] t=5s status=PLAYING states=25 rtt=130ms players=2 chain=[1] score=0
+[netbot] t=10s status=PLAYING states=51 rtt=130ms players=2 chain=[2, 1] score=4
+[netbot] t=15s status=PLAYING states=74 rtt=112ms players=2 chain=[2, 1] score=4
+[netbot] t=20s status=PLAYING states=96 rtt=182ms players=2 chain=[2, 1] score=4
+[netbot] t=25s status=PLAYING states=121 rtt=149ms players=2 chain=[2, 1] score=4
+[netbot] t=30s status=PLAYING states=147 rtt=99ms players=2 chain=[4, 1] score=10
+[netbot] t=35s status=PLAYING states=169 rtt=49ms players=2 chain=[8, 1] score=22
+[netbot] t=40s status=PLAYING states=192 rtt=48ms players=2 chain=[8, 1] score=22
+[netbot] RESULT OK status=PLAYING (Connected) states=218 moved=115.4 roster=[Player1180, Zappy, Glint, CI Bot]

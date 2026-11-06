@@ -1,0 +1,140 @@
+D/HostConnection(  752): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation(  752): eglCreateContext: 0x711fac0343b0: maj 3 min 0 rcv 3
+D/EGL_emulation(  752): eglMakeCurrent: 0x711fac0343b0: ver 3 0 (tinfo 0x711f4bfc00d0) (first time)
+D/EGL_emulation(  752): eglCreateContext: 0x711fac00d210: maj 3 min 0 rcv 3
+D/libEGL  ( 3197): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 3197): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 3197): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/HostConnection( 3197): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3197): eglCreateContext: 0x711fabf82150: maj 3 min 0 rcv 3
+D/EGL_emulation( 3197): eglMakeCurrent: 0x711fabf82150: ver 3 0 (tinfo 0x711f4bf9e8c0) (first time)
+D/HostConnection( 3197): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation(  752): eglCreateContext: 0x711fabfae0a0: maj 3 min 0 rcv 3
+D/libEGL  ( 3079): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 3079): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 3079): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf81bd0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf81bd0: ver 3 0 (tinfo 0x711f4bfa4470) (first time)
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf82830: maj 3 min 0 rcv 3
+D/AndroidRuntime( 3592): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 3592): Using default boot image
+I/AndroidRuntime( 3592): Leaving lock profiling enabled
+D/AndroidRuntime( 3592): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 3592): Shutting down VM
+D/HostConnection( 3793): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf838b0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf838b0: ver 3 0 (tinfo 0x711f4bfb0470) (first time)
+D/libEGL  ( 3842): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 3842): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 3842): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/libEGL  ( 1456): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 1456): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 1456): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/HostConnection( 3842): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3842): eglCreateContext: 0x711fabf7e2c0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3842): eglMakeCurrent: 0x711fabf7e2c0: ver 3 0 (tinfo 0x711f4bf9fa60) (first time)
+D/HostConnection( 3842): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3842): eglCreateContext: 0x711fabf7f130: maj 3 min 0 rcv 3
+D/HostConnection( 1456): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/HostConnection( 3842): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3842): eglMakeCurrent: 0x711fabf7f130: ver 3 0 (tinfo 0x711f4bf9ef20) (first time)
+D/EGL_emulation( 1456): eglCreateContext: 0x711fabf8a550: maj 1 min 0 rcv 1
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf826d0: maj 3 min 0 rcv 3
+D/EGL_emulation( 1456): eglMakeCurrent: 0x711fabf8a550: ver 1 0 (tinfo 0x711f4bf98a40) (first time)
+D/EGL_emulation( 1456): eglMakeCurrent: 0x711fabf8a550: ver 1 0 (tinfo 0x711f4bf98a40) (first time)
+D/EGL_emulation( 1456): eglCreateContext: 0x711fabf8a550: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf857a0: maj 3 min 0 rcv 3
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf852d0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf852d0: ver 3 0 (tinfo 0x711f4bfb0140) (first time)
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf84a90: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf84a90: ver 3 0 (tinfo 0x711f4bfbfe90) (first time)
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/AndroidRuntime( 4400): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf84bf0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf84bf0: ver 3 0 (tinfo 0x711f4bfc27a0) (first time)
+I/AndroidRuntime( 4400): Using default boot image
+I/AndroidRuntime( 4400): Leaving lock profiling enabled
+D/AndroidRuntime( 4400): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 4400): Shutting down VM
+D/HostConnection( 4459): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf883a0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf87c10: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf86fb0: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf86980: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf85bc0: maj 3 min 0 rcv 3
+D/libEGL  ( 4913): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 4913): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 4913): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/HostConnection( 4913): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf83280: maj 3 min 0 rcv 3
+D/EGL_emulation( 4913): eglCreateContext: 0x711fabf7f600: maj 3 min 0 rcv 3
+D/EGL_emulation( 4913): eglMakeCurrent: 0x711fabf7f600: ver 3 0 (tinfo 0x711f4bf9a0f0) (first time)
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf84e00: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf84e00: ver 3 0 (tinfo 0x711f4bfa2d90) (first time)
+D/AndroidRuntime( 5175): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 5175): Using default boot image
+I/AndroidRuntime( 5175): Leaving lock profiling enabled
+D/AndroidRuntime( 5175): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 5175): Shutting down VM
+D/HostConnection( 5288): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf85170: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf85170: ver 3 0 (tinfo 0x711f4bfc48d0) (first time)
+D/HostConnection( 3079): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 3079): eglCreateContext: 0x711fabf7f600: maj 3 min 0 rcv 3
+D/EGL_emulation( 3079): eglMakeCurrent: 0x711fabf7f600: ver 3 0 (tinfo 0x711f4bfa1890) (first time)
+D/libEGL  ( 6267): loaded /vendor/lib64/egl/libEGL_emulation.so
+D/libEGL  ( 6267): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+D/libEGL  ( 6267): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+D/HostConnection( 6267): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+D/EGL_emulation( 6267): eglCreateContext: 0x711fabfa93a0: maj 3 min 0 rcv 3
+D/EGL_emulation( 6267): eglMakeCurrent: 0x711fabfa93a0: ver 3 0 (tinfo 0x711f4bf9ae70) (first time)
+D/AndroidRuntime( 6508): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 6508): Using default boot image
+I/AndroidRuntime( 6508): Leaving lock profiling enabled
+D/AndroidRuntime( 6508): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 7480): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 7480): Using default boot image
+I/AndroidRuntime( 7480): Leaving lock profiling enabled
+D/AndroidRuntime( 7480): Calling main entry com.android.commands.input.Input
+D/AndroidRuntime( 7480): Shutting down VM
+D/AndroidRuntime( 7495): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 7495): Using default boot image
+I/AndroidRuntime( 7495): Leaving lock profiling enabled
+D/AndroidRuntime( 7495): Calling main entry com.android.commands.input.Input
+D/AndroidRuntime( 7495): Shutting down VM
+D/AndroidRuntime( 7645): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 7645): Using default boot image
+I/AndroidRuntime( 7645): Leaving lock profiling enabled
+D/AndroidRuntime( 7645): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 7645): Shutting down VM
+D/AndroidRuntime( 7674): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 7674): Using default boot image
+I/AndroidRuntime( 7674): Leaving lock profiling enabled
+D/AndroidRuntime( 7674): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 7674): Shutting down VM
+D/AndroidRuntime( 7993): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 7993): Using default boot image
+I/AndroidRuntime( 7993): Leaving lock profiling enabled
+D/AndroidRuntime( 7993): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 7993): Shutting down VM
+D/AndroidRuntime( 8023): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 8023): Using default boot image
+I/AndroidRuntime( 8023): Leaving lock profiling enabled
+D/AndroidRuntime( 8023): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 8023): Shutting down VM
+D/AndroidRuntime( 8048): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 8048): Using default boot image
+I/AndroidRuntime( 8048): Leaving lock profiling enabled
+D/AndroidRuntime( 8048): Calling main entry com.android.commands.input.Input
+D/AndroidRuntime( 8048): Shutting down VM
+D/AndroidRuntime( 8064): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+I/AndroidRuntime( 8064): Using default boot image
+I/AndroidRuntime( 8064): Leaving lock profiling enabled
+D/AndroidRuntime( 8064): Calling main entry com.android.commands.uiautomator.Launcher
+D/AndroidRuntime( 8064): Shutting down VM
